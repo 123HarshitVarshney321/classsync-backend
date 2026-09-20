@@ -1,11 +1,12 @@
 # ClassSync Backend
 
-ClassSync is a smart classroom and lecture-hall scheduling and allocation backend built with Java 21 and Spring Boot 3.
+ClassSync is a smart classroom and lecture-hall scheduling and allocation backend built with Java 21, Spring Boot 3, MySQL 8+, and Flyway migrations.
 
 ## Prerequisites
 
 - **Java**: 21 or newer (`java -version`)
 - **Maven**: 3.9+ (`mvn -version`)
+- **MySQL**: 8.0+ (`mysql --version`)
 
 ## Architecture & Design Principles
 
@@ -15,43 +16,38 @@ The backend follows a layered monolithic architecture:
 Controller  -->  Service  -->  Repository  -->  MySQL
 ```
 
-At this initial foundation stage:
-- Only necessary packages and classes are present (KISS, YAGNI, Ponytail minimal principles).
-- No premature abstractions, empty interfaces, or unused utility classes.
-- Database properties are configured to accept environment variables with sensible defaults.
-- Database entities, tables, JPA, and Redis connections are deferred to subsequent feature phases.
+- **Clean and Minimal**: Adheres to SOLID, KISS, YAGNI, and DRY principles without premature abstractions.
+- **Database Migrations**: Managed declaratively through Flyway. All primary keys use `INT AUTO_INCREMENT` (no UUIDs).
+- **Referential Integrity**: Deletion safety rules prevent accidental cascades on historical schedule and timetable data.
+- **No JPA Entities Yet**: Database schema and migrations are established independently; JPA entities will be mapped in Prompt 3.
 
-## Project Structure
+## Database Schema (10 Core Tables)
 
-```
-classsync-backend/
-├── pom.xml
-├── .gitignore
-├── README.md
-└── src/
-    ├── main/
-    │   ├── java/
-    │   │   └── com/
-    │   │       └── classsync/
-    │   │           ├── ClassSyncApplication.java
-    │   │           ├── controller/
-    │   │           │   └── HealthController.java
-    │   │           └── dto/
-    │   │               └── HealthResponse.java
-    │   └── resources/
-    │       └── application.yml
-    └── test/
-        └── java/
-            └── com/
-                └── classsync/
-                    ├── ClassSyncApplicationTests.java
-                    └── controller/
-                        └── HealthControllerTest.java
-```
+1. `users`: System users (Professors and Admins). Single table for all user types.
+2. `complexes`: Academic complexes/zones housing rooms (no separate buildings table).
+3. `rooms`: Classrooms, labs, lecture halls, and seminar halls with capacity check (`capacity > 0`) and `UNIQUE(complex_id, room_number)`.
+4. `facilities`: Equipment/amenities (e.g., Projector, Smart Board, AC, Computers, Audio System).
+5. `room_facilities`: Many-to-many relationship mapping rooms to facilities.
+6. `timetable_versions`: Version-controlled official timetable definitions (`academic_year`, `semester`, `version_number`).
+7. `timetable_entries`: Recurring weekly class slots with day of week check (`1-7`) and time ordering check (`start_time < end_time`).
+8. `schedule_occurrences`: Date-specific calendar occurrences (official and extra classes) with `timetable_entry_id` (NULLable for extra classes) and time ordering check.
+9. `notifications`: User notifications (`BOOKING`, `CANCELLATION`, `RESCHEDULE`, `SYSTEM`) with unread tracking index.
+10. `audit_logs`: Audit trail with JSON snapshots (`old_value`, `new_value`) for flexible change tracking.
+
+### Flyway Migrations
+
+- `V1__create_initial_schema.sql`: Creates all 10 tables, check constraints, foreign keys, and indexes.
+- `V2__seed_development_data.sql`: Seeds minimal realistic local development data:
+  - 1 Admin (`admin@classsync.edu`)
+  - 2 Professors (`aturing@classsync.edu`, `alovelace@classsync.edu`)
+  - 2 Complexes (`SEC`, `HSS`)
+  - 5 Rooms across complexes
+  - 5 Facilities with room-facility mappings
+  - *Note: Seed passwords use development BCrypt hash for `password123` (`$2a$10$7EqJtq98hPqEX7fNZaFWoOhiVjA7RMRp5e8VbZp0m5eLgLgQ16M3O`).*
 
 ## Configuration
 
-Configuration is managed in `src/main/resources/application.yml`. Database credentials and server port can be supplied through environment variables:
+Configuration is managed in `src/main/resources/application.yml`:
 
 | Environment Variable | Description | Default Value |
 |----------------------|-------------|---------------|
@@ -60,39 +56,21 @@ Configuration is managed in `src/main/resources/application.yml`. Database crede
 | `DB_USERNAME`        | MySQL user | `root` |
 | `DB_PASSWORD`        | MySQL password | (empty) |
 
-No secrets are hardcoded.
-
 ## How to Run the Backend
 
-To run the application using Maven:
-
 ```bash
+# Start MySQL service if not running:
+brew services start mysql
+
+# Run the application (Flyway migrations run automatically on startup):
 mvn spring-boot:run
-```
 
-Or build and run the packaged JAR:
-
-```bash
+# Or package and run the executable JAR:
 mvn clean package
 java -jar target/classsync-backend-0.0.1-SNAPSHOT.jar
 ```
 
-## Health Endpoint
-
-- **Endpoint**: `GET /api/health`
-- **Method**: `GET`
-- **Response**: `200 OK`
-- **Content-Type**: `application/json`
-
-**Example Response:**
-```json
-{
-  "status": "UP",
-  "service": "ClassSync Backend"
-}
-```
-
-Verify with `curl`:
+Verify health check:
 ```bash
 curl http://localhost:8080/api/health
 ```
@@ -100,13 +78,6 @@ curl http://localhost:8080/api/health
 ## Testing
 
 Run all unit and integration slice tests:
-
 ```bash
 mvn test
-```
-
-Run a complete build and verification:
-
-```bash
-mvn clean verify
 ```
