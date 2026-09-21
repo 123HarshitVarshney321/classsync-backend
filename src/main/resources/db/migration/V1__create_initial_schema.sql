@@ -99,7 +99,7 @@ CREATE TABLE schedule_occurrences (
     created_by INT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT chk_schedule_occurrences_time_order CHECK (start_time < end_time),
-    CONSTRAINT fk_schedule_occurrences_entry FOREIGN KEY (timetable_entry_id) REFERENCES timetable_entries (id) ON DELETE SET NULL ON UPDATE CASCADE,
+    CONSTRAINT fk_schedule_occurrences_entry FOREIGN KEY (timetable_entry_id) REFERENCES timetable_entries (id) ON DELETE RESTRICT ON UPDATE CASCADE,
     CONSTRAINT fk_schedule_occurrences_professor FOREIGN KEY (professor_id) REFERENCES users (id) ON DELETE RESTRICT ON UPDATE CASCADE,
     CONSTRAINT fk_schedule_occurrences_room FOREIGN KEY (room_id) REFERENCES rooms (id) ON DELETE RESTRICT ON UPDATE CASCADE,
     CONSTRAINT fk_schedule_occurrences_creator FOREIGN KEY (created_by) REFERENCES users (id) ON DELETE RESTRICT ON UPDATE CASCADE
