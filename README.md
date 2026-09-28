@@ -75,9 +75,56 @@ Verify health check:
 curl http://localhost:8080/api/health
 ```
 
+## Authentication & Authorization (Prompt 4)
+
+Authentication is implemented with Spring Security using a REST session-based approach with BCrypt password hashing.
+
+### Endpoints
+
+| Method | Endpoint | Access | Description |
+|---|---|---|---|
+| `GET` | `/api/health` | Public | Application health status |
+| `POST` | `/api/auth/login` | Public | Authenticate user, start session |
+| `GET` | `/api/test/authenticated` | Authenticated | Test endpoint for any authenticated user |
+| `GET` | `/api/test/professor` | `ROLE_PROFESSOR`, `ROLE_ADMIN` | Test endpoint for professors / admins |
+| `GET` | `/api/test/admin` | `ROLE_ADMIN` | Test endpoint restricted to admins |
+
+### Login Request / Response
+
+**Request:**
+```bash
+POST /api/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@classsync.edu",
+  "password": "password123"
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "id": 1,
+  "name": "System Administrator",
+  "email": "admin@classsync.edu",
+  "role": "ADMIN"
+}
+```
+*Note: A session cookie (`JSESSIONID`) is issued with `HttpOnly` enabled. Password hashes or internal credentials are never exposed in responses.*
+
+### Development Credentials
+
+> **Notice:** These credentials are for local development testing only and must never be used in production.
+
+- **Admin:** `admin@classsync.edu` / `password123`
+- **Professor:** `aturing@classsync.edu` / `password123`
+- **Professor:** `alovelace@classsync.edu` / `password123`
+
 ## Testing
 
-Run all unit and integration slice tests:
+Run all unit, repository, and security integration tests:
 ```bash
 mvn test
 ```
+
