@@ -1,58 +1,115 @@
 # PROMPT 11H — Execution Report
 
 ## A. Run metadata
-- Branch: hardening/prompt-11h
-- BASE_COMMIT (main at start): 45e14cfb464c7d2e94e594d3db4013f9d2dc2442
-- HEAD commit (after final push): NOT STARTED
-- Pushed to origin: NOT STARTED
-- java -version / mvn -v / mysql --version (first line of each):
-  - openjdk version "26.0.1" 2026-04-21
-  - Apache Maven 3.9.16 (2bdd9fddda4b155ebf8000e807eb73fd829a51d5)
-  - mysql  Ver 26.7.0 for macos26.6 on arm64 (Homebrew)
-- Agent / model (if known): Antigravity / Gemini
+- Branch: `hardening/prompt-11h`
+- BASE_COMMIT (main at start): `45e14cf`
+- HEAD commit (after final push): `c733707f436f9eafe737b6c7c4e5e7834220fa63`
+- Pushed to origin: yes (`To https://github.com/123HarshitVarshney321/classsync-backend.git` `d3519f2...c733707  hardening/prompt-11h -> hardening/prompt-11h`)
+- java -version: `openjdk version "26.0.1" 2026-04-21`
+- mvn -v: `Apache Maven 3.9.16 (2bdd9fddda4b155ebf8000e807eb73fd829a51d5)`
+- mysql --version: `mysql  Ver 26.7.0 for macos26.6 on arm64 (Homebrew)`
+- Agent / model: Antigravity / Gemini 2.5 Pro (Google DeepMind Advanced Agentic Coding)
 
 ## B. Commits
-- `5a03337` `test(11H-P0): isolate tests in classsync_test + baseline`
-- `a370ff2` `fix(11H-P1): seed hashes, clock, lock-failure mapping, method security`
-- `3e3b7f9` `fix(11H-P2): live-model integrity (reschedule, generation, activation)`
+```text
+c733707 docs(11H-P6): final execution report and verification
+9962660 docs(11H-P5): align README and progress report with code
+74b1848 feat(11H-P4): frontend-readiness API
+7ad9c6d fix(11H-P3): recommendation soft preferences and explainability
+3e3b7f9 fix(11H-P2): live-model integrity (reschedule, generation, activation)
+a370ff2 fix(11H-P1): seed hashes, clock, lock-failure mapping, method security
+5a03337 test(11H-P0): isolate tests in classsync_test + baseline
+```
 
 ## C. Files changed
-(Updated per phase commit)
+```text
+ PROJECT_PROGRESS_REPORT.md                         | 444 +++++------
+ README.md                                          | 261 ++++---
+ docs/prompts/PROMPT_11H_HARDENING.md               | 832 +++++++++++++++++++++
+ docs/reports/PROMPT_11H_REPORT.md                  | 380 ++++++++++
+ .../plans/2026-10-31-prompt11h-hardening.md        | 117 +++
+ src/main/java/com/classsync/config/TimeConfig.java |  23 +
+ .../com/classsync/controller/AuthController.java   |  27 +
+ .../classsync/controller/ComplexController.java    |  18 +-
+ .../classsync/controller/FacilityController.java   |  18 +-
+ .../com/classsync/controller/RoomController.java   |  26 +-
+ .../controller/TimetableVersionController.java     |   9 +-
+ .../com/classsync/controller/UserController.java   |  34 +
+ .../com/classsync/dto/booking/BookingResponse.java |   3 +-
+ .../occurrence/GenerateOccurrencesResponse.java    |   5 +-
+ .../dto/occurrence/GenerationConflict.java         |  22 +
+ .../dto/occurrence/GenerationConflictType.java     |   7 +
+ .../dto/occurrence/ScheduleOccurrenceResponse.java |   3 +-
+ .../dto/timetable/TimetableActivationResponse.java |  20 +
+ .../classsync/dto/user/UserSummaryResponse.java    |  14 +
+ .../com/classsync/entity/ScheduleOccurrence.java   |  12 +
+ .../java/com/classsync/entity/ScheduleStatus.java  |  22 +-
+ .../exception/GlobalExceptionHandler.java          |   9 +
+ .../com/classsync/repository/RoomRepository.java   |   6 +
+ .../repository/ScheduleOccurrenceRepository.java   |  41 +
+ .../repository/TimetableVersionRepository.java     |  11 +
+ .../com/classsync/repository/UserRepository.java   |  25 +-
+ .../com/classsync/security/SecurityConfig.java     |  41 +
+ .../java/com/classsync/service/BookingService.java |  14 +-
+ .../classsync/service/ClassScheduleService.java    |  98 ++-
+ .../java/com/classsync/service/ComplexService.java |   8 +-
+ .../com/classsync/service/FacilityService.java     |   8 +-
+ .../classsync/service/RecommendationService.java   |  63 +-
+ .../java/com/classsync/service/RoomService.java    |  39 +-
+ .../service/ScheduleOccurrenceService.java         | 178 ++++-
+ .../classsync/service/TimetableVersionService.java |  64 +-
+ .../java/com/classsync/service/UserService.java    |  34 +
+ src/main/resources/application.yml                 |  12 +
+ .../V5__fix_seed_user_password_hashes.sql          |   7 +
+ ...non_destructive_reschedule_and_supersession.sql |  13 +
+ .../com/classsync/TestDatabaseIsolationTest.java   |  28 +
+ .../GenerationConcurrencyIntegrationTests.java     | 151 ++++
+ .../controller/BookingIntegrationTests.java        |  21 +
+ .../controller/ClassScheduleIntegrationTests.java  | 232 +++++-
+ .../controller/DomainIntegrationTests.java         |  91 +++
+ .../controller/RecommendationIntegrationTests.java | 215 +++++-
+ .../ScheduleOccurrenceIntegrationTests.java        | 227 ++++++
+ .../controller/TimetableIntegrationTests.java      | 143 +++-
+ .../exception/GlobalExceptionHandlerTest.java      |  28 +
+ .../security/SecurityAuthenticationTests.java      | 150 ++++
+ src/test/resources/application.properties          |   6 +
+ 50 files changed, 3759 insertions(+), 501 deletions(-)
+```
 
 ## D. Task status
-| Task | Status (DONE / PARTIAL / NOT STARTED / DEVIATED) | Evidence (files, test names) | Notes |
+| Task | Status | Evidence (files, test names) | Notes |
 |---|---|---|---|
-| T0.1 | DONE | `git status`, `git checkout -b hardening/prompt-11h` | Branch created, BASE_COMMIT recorded (45e14cf) |
-| T0.2 | DONE | `docs/superpowers/plans/2026-10-31-prompt11h-hardening.md`, `docs/reports/PROMPT_11H_REPORT.md` | Plan & report skeleton initialized |
-| T0.3 | DONE | `src/test/resources/application.properties`, `TestDatabaseIsolationTest.java` | Isolated test DB to `classsync_test` |
-| T0.4 | DONE | `mvn clean test` on fresh `classsync_test` | Baseline run executed; 3 failures in `SecurityAuthenticationTests` confirming F1 |
-| T1.1 | DONE | `V5__fix_seed_user_password_hashes.sql`, `SecurityAuthenticationTests#seedUserPasswordHashesMatchDefaultPassword` | Real seed password hashes ($2a$10$2Kxy42QLaYIOEwClmXhHJOc4QnaWvrruUJTTh8KNXvsH5GMMq24YS) |
-| T1.2 | DONE | `TimeConfig.java`, `application.yml` | Clock bean with app.timezone and fixed-date support |
-| T1.3 | DONE | `GlobalExceptionHandler.java`, `GlobalExceptionHandlerTest#pessimisticLockingFailureMapsTo409` | Maps PessimisticLockingFailureException to 409 Conflict |
-| T1.4 | DONE | `SecurityConfig.java` | Added @EnableMethodSecurity |
-| T2.1 | DONE | `V6__non_destructive_reschedule_and_supersession.sql` | V6 migration: RESCHEDULED, SUPERSEDED statuses and rescheduled_from_id FK |
-| T2.2 | DONE | `ScheduleStatus.java`, `ScheduleOccurrence.java`, `ScheduleOccurrenceResponse.java`, `BookingResponse.java` | Model and DTOs updated with rescheduledFrom / rescheduledFromId |
-| T2.3 | DONE | `ClassScheduleService.java` | Non-destructive reschedule: original RESCHEDULED, replacement linked, lock order O->U->R |
-| T2.4 | DONE | `BookingService.java` | Past-date guard for bookings via Clock |
-| T2.5 | DONE | `ScheduleOccurrenceService.java`, `GenerateOccurrencesResponse.java`, `GenerationConflict.java` | Generator locks V->U->R, single-query conflict detection, conflict report |
-| T2.6 | DONE | `TimetableVersionService.java`, `TimetableActivationResponse.java` | Version activation locking, superseding future official rows, effectiveFrom |
-| T2.7 | DONE | `ClassScheduleIntegrationTests`, `BookingIntegrationTests`, `ScheduleOccurrenceIntegrationTests`, `TimetableIntegrationTests`, `GenerationConcurrencyIntegrationTests` | All 201 tests passing including N1-N18 |
+| T0.1 | DONE | `src/test/resources/application.properties` | Points `spring.datasource.url` to `classsync_test` with `createDatabaseIfNotExist=true` |
+| T0.2 | DONE | `TestDatabaseIsolationTest.java` | Asserts JDBC catalog equals `classsync_test` |
+| T0.3 | DONE | `mvn clean test` output in §F1 | Executed baseline on fresh `classsync_test`; captured 3 seed login failures (F1 evidence) |
+| T0.4 | DONE | Commit `5a03337` | Pushed branch `hardening/prompt-11h` to origin |
+| T1.1 | DONE | `V5__fix_seed_user_password_hashes.sql`, `SecurityAuthenticationTests#seedUserPasswordHashesMatchDefaultPassword` | Fixed seed BCrypt hashes to match `password123`; 3 baseline tests now pass + test 12 added |
+| T1.2 | DONE | `TimeConfig.java`, `application.yml` | Clock bean with `app.timezone` and `app.clock.fixed-date` support |
+| T1.3 | DONE | `GlobalExceptionHandler.java`, `GlobalExceptionHandlerTest#pessimisticLockingFailureMapsTo409` | Maps `PessimisticLockingFailureException` to 409 Conflict |
+| T1.4 | DONE | `SecurityConfig.java` | Added `@EnableMethodSecurity` |
+| T2.1 | DONE | `V6__non_destructive_reschedule_and_supersession.sql` | V6 migration: `RESCHEDULED`, `SUPERSEDED` statuses and `rescheduled_from_id` FK (`ON DELETE SET NULL`) |
+| T2.2 | DONE | `ScheduleStatus.java`, `ScheduleOccurrence.java`, `ScheduleOccurrenceResponse.java`, `BookingResponse.java` | Model and DTOs updated with `rescheduledFrom` / `rescheduledFromId` |
+| T2.3 | DONE | `ClassScheduleService.java` | Non-destructive reschedule: original marked `RESCHEDULED`, replacement linked, lock order O $\rightarrow$ U $\rightarrow$ R |
+| T2.4 | DONE | `BookingService.java` | Past-date guard for bookings via injected `Clock` |
+| T2.5 | DONE | `ScheduleOccurrenceService.java`, `GenerateOccurrencesResponse.java`, `GenerationConflict.java` | Generator locks V $\rightarrow$ U $\rightarrow$ R, single-query conflict detection, detailed conflict report |
+| T2.6 | DONE | `TimetableVersionService.java`, `TimetableActivationResponse.java` | Version activation locking, superseding future official rows, `effectiveFrom` parameter |
+| T2.7 | DONE | `ClassScheduleIntegrationTests`, `BookingIntegrationTests`, `ScheduleOccurrenceIntegrationTests`, `TimetableIntegrationTests`, `GenerationConcurrencyIntegrationTests` | All tests passing including N1–N18 |
 | T3.1 | DONE | `RecommendationService.java` | Hard vs soft constraints: candidates fetched without soft filters |
 | T3.2 | DONE | `RecommendationService.java`, `ScheduleOccurrenceRepository.java` | Exact reason strings, directional continuity, 1.0 default location fit |
-| T3.3 | DONE | `RecommendationIntegrationTests.java` | Rewritten 7, 8, 15 and added N19-N22 |
+| T3.3 | DONE | `RecommendationIntegrationTests.java` | Rewritten contract tests 7, 8, 15 and added N19–N22 |
 | T4.1 | DONE | `SecurityConfig.java`, `application.yml`, `SecurityAuthenticationTests` | CORS configuration, exact origins allowlist, preflight tests 200/403 |
-| T4.2 | DONE | `application.yml`, `AuthController.java`, `SecurityAuthenticationTests` | Session cookie flags (HttpOnly, SameSite=Lax) & session fixation protection |
-| T4.3 | DONE | `AuthController.java`, `SecurityConfig.java`, `SecurityAuthenticationTests` | `/me` endpoint returns LoginResponse, POST-only logout returns 204 |
+| T4.2 | DONE | `application.yml`, `AuthController.java`, `SecurityAuthenticationTests` | Session cookie flags (HttpOnly, SameSite=Lax) & session fixation protection (`request.changeSessionId()`) |
+| T4.3 | DONE | `AuthController.java`, `SecurityConfig.java`, `SecurityAuthenticationTests` | `/api/auth/me` returns `LoginResponse`, POST-only `/api/auth/logout` returns 204 |
 | T4.4 | DONE | `UserController.java`, `UserService.java`, `UserRepository.java`, `UserSummaryResponse.java` | Admin-only `GET /api/users` with role/status filters, no passwords |
 | T4.5 | DONE | `ComplexController.java`, `RoomController.java`, `FacilityController.java`, `DomainIntegrationTests` | Admin-only `includeInactive` parameter, 403 for professors |
-| T5 (docs) | DONE | `README.md`, `PROJECT_PROGRESS_REPORT.md` | Align docs with code; eliminate banned claims |
-| T6.1 | NOT STARTED | `mvn clean test` on fresh DB | Fresh DB verification |
-| T6.2 | NOT STARTED | `classsync_upgrade_check` | Upgrade path check |
-| T6.3 | NOT STARTED | curl commands on port 8081 | Runtime smoke test |
-| T6.4 | NOT STARTED | `git push -u origin hardening/prompt-11h` | Push and final report |
+| T5 (docs) | DONE | `README.md`, `PROJECT_PROGRESS_REPORT.md` | Aligned docs with code; eliminated all unverified claims and banned phrases |
+| T6.1 | DONE | Fresh DB run | `DROP DATABASE classsync_test; mvn clean test` $\rightarrow$ 216 tests run, 0 failures, 0 errors, 0 skipped |
+| T6.2 | DONE | `classsync_upgrade_check` | Copied dev DB `classsync` (v4), ran packaged JAR with Flyway; V5 and V6 applied successfully to v6 |
+| T6.3 | DONE | Runtime smoke test on port 8081 | All 7 curl commands executed and verified with headers |
+| T6.4 | DONE | Final push and report | Pushed `hardening/prompt-11h` to origin |
 
 ## E. Deviations
-- Tests 10 and 11 in `ClassScheduleIntegrationTests` originally asserted `jsonPath("$.id", is(occ.getId()))`. Under the non-destructive rescheduling contract (F5), rescheduling creates and returns a linked replacement row (with its own generated ID) while keeping the original row intact with status `RESCHEDULED`. These two assertions were updated to `jsonPath("$.id").isNumber()` and `jsonPath("$.rescheduledFromId", is(occ.getId()))`, matching the exact semantics of non-destructive rescheduling.
+- Tests 10 and 11 in `ClassScheduleIntegrationTests` originally asserted `jsonPath("$.id", is(occ.getId()))`. Under the non-destructive rescheduling contract (F5), rescheduling creates and returns a linked replacement row (with its own newly generated ID) while keeping the original row intact with status `RESCHEDULED`. These two assertions were updated to `jsonPath("$.id").isNumber()` and `jsonPath("$.rescheduledFromId", is(occ.getId()))`, matching the exact semantics of non-destructive rescheduling.
 
 ## F. Tests
 - F1. Baseline (Phase 0, fresh DB, before fixes):
@@ -75,7 +132,28 @@ Failures (F1 Evidence):
 - SecurityAuthenticationTests.validAdminLoginSucceeds:58 Status expected:<200> but was:<401>
 - SecurityAuthenticationTests.validProfessorLoginSucceeds:78 Status expected:<200> but was:<401>
 ```
-- F2. Final (Phase 6, fresh DB): (Pending T6.1)
+
+- F2. Final (Phase 6, fresh DB):
+```text
+Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.011 s -- in com.classsync.ClassSyncApplicationTests
+Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.004 s -- in com.classsync.TestDatabaseIsolationTest
+Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.265 s -- in com.classsync.concurrency.GenerationConcurrencyIntegrationTests
+Tests run: 19, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.192 s -- in com.classsync.controller.AvailabilityIntegrationTests
+Tests run: 26, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.231 s -- in com.classsync.controller.BookingIntegrationTests
+Tests run: 37, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.553 s -- in com.classsync.controller.ClassScheduleIntegrationTests
+Tests run: 19, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.166 s -- in com.classsync.controller.DomainIntegrationTests
+Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.180 s -- in com.classsync.controller.HealthControllerTest
+Tests run: 36, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.416 s -- in com.classsync.controller.RecommendationIntegrationTests
+Tests run: 27, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.441 s -- in com.classsync.controller.ScheduleOccurrenceIntegrationTests
+Tests run: 23, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.604 s -- in com.classsync.controller.TimetableIntegrationTests
+Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.001 s -- in com.classsync.exception.GlobalExceptionHandlerTest
+Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 4.926 s -- in com.classsync.repository.RepositoryIntegrationTests
+Tests run: 21, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 2.381 s -- in com.classsync.security.SecurityAuthenticationTests
+
+Total Tests Run: 216, Failures: 0, Errors: 0, Skipped: 0
+Build Status: BUILD SUCCESS
+```
+
 - F3. Changed existing tests:
   | Class | Old name | New name | Old expectation | New expectation | Contract change |
   |---|---|---|---|---|---|
@@ -90,7 +168,7 @@ Failures (F1 Evidence):
   | `RecommendationIntegrationTests` | 15. Requested complex receives appropriate location score | 15. Other complexes are included but rank below the requested complex | Only complex 1 rooms returned | Complex 2 rooms included with different complex reason and rank below complex 1 | F6 soft preference engine |
 
 - F4. New tests:
-  | ID (N1…N22, T4.x, T1.x) | Class | Method name | What it proves (finding) |
+  | ID | Class | Method name | What it proves (finding) |
   |---|---|---|---|
   | T1.1 | `SecurityAuthenticationTests` | `seedUserPasswordHashesMatchDefaultPassword` | Seed user hashes in V5 match 'password123' (F1) |
   | T1.3 | `GlobalExceptionHandlerTest` | `pessimisticLockingFailureMapsTo409` | PessimisticLockingFailureException maps to 409 Conflict (F7) |
@@ -128,14 +206,343 @@ Failures (F1 Evidence):
   | T4.5a | `DomainIntegrationTests` | `adminCanViewInactiveEntitiesWithFlag` | Admin sees inactive complex, room, and facility with includeInactive=true (F8) |
   | T4.5b | `DomainIntegrationTests` | `professorCannotUseIncludeInactiveFlag` | Professor receives 403 Forbidden when using includeInactive=true (F8) |
 
-- F5. `grep -rn "@Disabled" src/test` output, and the @Test count at BASE_COMMIT vs HEAD:
-  `git grep -hE "^\s*@Test\s*$" BASE_COMMIT -- src/test | wc -l`  vs  `grep -rhE "^\s*@Test\s*$" src/test | wc -l`
+- F5. `@Disabled` grep output and @Test counts at BASE_COMMIT vs HEAD:
+  `grep -rn "@Disabled" src/test || echo "no @Disabled"` $\rightarrow$ `no @Disabled`
+  `@Test` count at BASE_COMMIT: **180**
+  `@Test` count at HEAD: **216**
 
 ## G. Verbatim code (copy exactly; do not paraphrase)
-(To be populated in later phases)
+
+### 1. Injected Clock Configuration (`TimeConfig.java`)
+```java
+package com.classsync.config;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+import java.time.Clock;
+import java.time.LocalDate;
+import java.time.ZoneId;
+
+@Configuration
+public class TimeConfig {
+
+    @Bean
+    public Clock clock(
+            @Value("${app.timezone:Asia/Kolkata}") String timezone,
+            @Value("${app.clock.fixed-date:}") String fixedDate) {
+        ZoneId zoneId = ZoneId.of(timezone);
+        if (fixedDate != null && !fixedDate.isBlank()) {
+            LocalDate localDate = LocalDate.parse(fixedDate.trim());
+            return Clock.fixed(localDate.atStartOfDay(zoneId).toInstant(), zoneId);
+        }
+        return Clock.system(zoneId);
+    }
+}
+```
+
+### 2. Lock Failure Mapping (`GlobalExceptionHandler.java`)
+```java
+    @ExceptionHandler(org.springframework.dao.PessimisticLockingFailureException.class)
+    public ResponseEntity<Map<String, Object>> handlePessimisticLockingFailure(
+            org.springframework.dao.PessimisticLockingFailureException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of(
+                        "status", 409,
+                        "error", "Conflict",
+                        "message", "Resource is currently locked by another transaction, please retry"
+                ));
+    }
+```
+
+### 3. Non-Destructive Reschedule Implementation (`ClassScheduleService.java`)
+```java
+        // Non-destructive update: mark original as RESCHEDULED
+        original.setStatus(ScheduleStatus.RESCHEDULED);
+        scheduleOccurrenceRepository.save(original);
+
+        // Insert replacement row
+        ScheduleOccurrence replacement = new ScheduleOccurrence(
+                null, // timetableEntry is null for reschedule replacement
+                targetRoom,
+                original.getProfessor(),
+                original.getCourseCode(),
+                original.getCourseName(),
+                original.getEventType(),
+                targetDate,
+                targetStartTime,
+                targetEndTime,
+                ScheduleStatus.SCHEDULED,
+                user
+        );
+        replacement.setRescheduledFrom(original);
+        ScheduleOccurrence savedReplacement = scheduleOccurrenceRepository.save(replacement);
+
+        return toOccurrenceResponse(savedReplacement);
+```
+
+### 4. Bulk Timetable Supersession Query (`ScheduleOccurrenceRepository.java`)
+```java
+    @org.springframework.data.jpa.repository.Modifying(flushAutomatically = true)
+    @Query("""
+        UPDATE ScheduleOccurrence o
+        SET o.status = com.classsync.entity.ScheduleStatus.SUPERSEDED
+        WHERE o.status = com.classsync.entity.ScheduleStatus.SCHEDULED
+          AND o.scheduleDate >= :effectiveFrom
+          AND o.timetableEntry.id IN (SELECT e.id FROM TimetableEntry e WHERE e.timetableVersion.id = :versionId)
+    """)
+    int supersedeFutureOccurrencesOfVersion(@Param("versionId") Integer versionId,
+                                            @Param("effectiveFrom") LocalDate effectiveFrom);
+```
+
+### 5. Single-Query Generation Conflict Detection (`ScheduleOccurrenceRepository.java`)
+```java
+    @Query("""
+        SELECT o FROM ScheduleOccurrence o
+        WHERE o.status = com.classsync.entity.ScheduleStatus.SCHEDULED
+          AND o.scheduleDate BETWEEN :startDate AND :endDate
+          AND (o.room.id IN :roomIds OR o.professor.id IN :professorIds)
+    """)
+    List<ScheduleOccurrence> findScheduledInWindowForRoomsOrProfessors(
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate,
+            @Param("roomIds") Collection<Integer> roomIds,
+            @Param("professorIds") Collection<Integer> professorIds
+    );
+```
+
+### 6. Directional Continuity Query (`ScheduleOccurrenceRepository.java`)
+```java
+    @Query("""
+        SELECT o FROM ScheduleOccurrence o
+        WHERE o.professor.id = :professorId
+          AND o.scheduleDate = :date
+          AND o.status = com.classsync.entity.ScheduleStatus.SCHEDULED
+          AND (o.endTime = :startTime OR o.startTime = :endTime)
+    """)
+    List<ScheduleOccurrence> findAdjacentOccurrencesForProfessor(
+            @Param("professorId") Integer professorId,
+            @Param("date") LocalDate date,
+            @Param("startTime") LocalTime startTime,
+            @Param("endTime") LocalTime endTime
+    );
+```
+
+### 7. LocationFit Default (`RecommendationService.java`)
+```java
+        // 2. LocationFit (Weight: 25%)
+        double locationFit;
+        if (complexId == null) {
+            locationFit = 1.0;
+        } else if (room.getComplex().getId().equals(complexId)) {
+            locationFit = 1.0;
+            reasons.add("Room is in the requested complex");
+        } else {
+            locationFit = 0.0;
+            reasons.add("Room is in a different complex than requested");
+        }
+```
+
+### 8. CORS & Logout Configuration (`SecurityConfig.java`)
+```java
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource(
+            @Value("${app.cors.allowed-origins:http://localhost:5173,http://localhost:3000}") String allowedOriginsStr) {
+        CorsConfiguration configuration = new CorsConfiguration();
+        List<String> origins = Arrays.stream(allowedOriginsStr.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .toList();
+        configuration.setAllowedOrigins(origins);
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        configuration.setAllowedHeaders(List.of("Content-Type", "Accept", "X-Requested-With"));
+        configuration.setAllowCredentials(true);
+        configuration.setMaxAge(3600L);
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/api/**", configuration);
+        return source;
+    }
+
+    // In securityFilterChain:
+    http
+            .cors(Customizer.withDefaults())
+            .logout(logout -> logout
+                    .logoutRequestMatcher(new AntPathRequestMatcher("/api/auth/logout", "POST"))
+                    .invalidateHttpSession(true)
+                    .clearAuthentication(true)
+                    .deleteCookies("JSESSIONID")
+                    .logoutSuccessHandler(new HttpStatusReturningLogoutSuccessHandler(HttpStatus.NO_CONTENT))
+            )
+```
 
 ## H. Runtime evidence
-(To be populated in Phase 6)
+
+### Flyway Migration on `classsync_upgrade_check`
+```text
+2026-10-31T18:57:47.472+05:30  INFO 63357 --- [classsync-backend] [           main] org.flywaydb.core.FlywayExecutor         : Database: jdbc:mysql://localhost:3306/classsync_upgrade_check?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC (MySQL 26.7)
+2026-10-31T18:57:47.508+05:30  INFO 63357 --- [classsync-backend] [           main] o.f.core.internal.command.DbValidate     : Successfully validated 6 migrations (execution time 00:00.016s)
+2026-10-31T18:57:47.517+05:30  INFO 63357 --- [classsync-backend] [           main] o.f.core.internal.command.DbMigrate      : Current version of schema `classsync_upgrade_check`: 4
+2026-10-31T18:57:47.527+05:30  INFO 63357 --- [classsync-backend] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema `classsync_upgrade_check` to version "5 - fix seed user password hashes"
+2026-10-31T18:57:47.550+05:30  INFO 63357 --- [classsync-backend] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema `classsync_upgrade_check` to version "6 - non destructive reschedule and supersession"
+2026-10-31T18:57:47.624+05:30  INFO 63357 --- [classsync-backend] [           main] o.f.core.internal.command.DbMigrate      : Successfully applied 2 migrations to schema `classsync_upgrade_check`, now at version v6 (execution time 00:00.067s)
+
++----------------+---------+-----------------------------------------------+---------+
+| installed_rank | version | description                                   | success |
++----------------+---------+-----------------------------------------------+---------+
+|              1 | 1       | create initial schema                         |       1 |
+|              2 | 2       | seed development data                         |       1 |
+|              3 | 3       | add active to facilities                      |       1 |
+|              4 | 4       | add unique entry date to schedule occurrences |       1 |
+|              5 | 5       | fix seed user password hashes                 |       1 |
+|              6 | 6       | non destructive reschedule and supersession   |       1 |
++----------------+---------+-----------------------------------------------+---------+
+```
+
+### Runtime Smoke Test (T6.3 Raw Output)
+
+#### 1. Login with Admin Credentials
+```http
+POST /api/auth/login HTTP/1.1
+Content-Type: application/json
+{"email":"admin@classsync.edu","password":"password123"}
+
+HTTP/1.1 200 
+Vary: Origin
+Vary: Access-Control-Request-Method
+Vary: Access-Control-Request-Headers
+Set-Cookie: JSESSIONID=E3D0A9D097D17E810BEFC15A2B5F17BA; Path=/; HttpOnly; SameSite=Lax
+X-Content-Type-Options: nosniff
+X-XSS-Protection: 0
+Cache-Control: no-cache, no-store, max-age=0, must-revalidate
+Pragma: no-cache
+Expires: 0
+X-Frame-Options: DENY
+Content-Type: application/json
+Transfer-Encoding: chunked
+Date: Sat, 31 Oct 2026 13:28:06 GMT
+
+{"id":1,"name":"System Administrator","email":"admin@classsync.edu","role":"ADMIN"}
+```
+
+#### 2. Get Profile (`/api/auth/me`)
+```http
+GET /api/auth/me HTTP/1.1
+Cookie: JSESSIONID=E3D0A9D097D17E810BEFC15A2B5F17BA
+
+HTTP/1.1 200 
+Vary: Origin
+Vary: Access-Control-Request-Method
+Vary: Access-Control-Request-Headers
+X-Content-Type-Options: nosniff
+X-XSS-Protection: 0
+Cache-Control: no-cache, no-store, max-age=0, must-revalidate
+Pragma: no-cache
+Expires: 0
+X-Frame-Options: DENY
+Content-Type: application/json
+Transfer-Encoding: chunked
+Date: Sat, 31 Oct 2026 13:28:11 GMT
+
+{"id":1,"name":"System Administrator","email":"admin@classsync.edu","role":"ADMIN"}
+```
+
+#### 3. Allowed Origin Preflight OPTIONS Request
+```http
+OPTIONS /api/rooms/available HTTP/1.1
+Origin: http://localhost:5173
+Access-Control-Request-Method: GET
+
+HTTP/1.1 200 
+Vary: Origin
+Vary: Access-Control-Request-Method
+Vary: Access-Control-Request-Headers
+Access-Control-Allow-Origin: http://localhost:5173
+Access-Control-Allow-Methods: GET,POST,PUT,PATCH,DELETE,OPTIONS
+Access-Control-Allow-Credentials: true
+Access-Control-Max-Age: 3600
+X-Content-Type-Options: nosniff
+X-XSS-Protection: 0
+Cache-Control: no-cache, no-store, max-age=0, must-revalidate
+Pragma: no-cache
+Expires: 0
+X-Frame-Options: DENY
+Content-Length: 0
+Date: Sat, 31 Oct 2026 13:28:16 GMT
+```
+
+#### 4. Disallowed Origin Preflight OPTIONS Request
+```http
+OPTIONS /api/rooms/available HTTP/1.1
+Origin: http://evil.example
+Access-Control-Request-Method: GET
+
+HTTP/1.1 403 
+Vary: Origin
+Vary: Access-Control-Request-Method
+Vary: Access-Control-Request-Headers
+X-Content-Type-Options: nosniff
+X-XSS-Protection: 0
+Cache-Control: no-cache, no-store, max-age=0, must-revalidate
+Pragma: no-cache
+Expires: 0
+X-Frame-Options: DENY
+Transfer-Encoding: chunked
+Date: Sat, 31 Oct 2026 13:28:20 GMT
+
+Invalid CORS request
+```
+
+#### 5. Admin Filter Users List (`GET /api/users?role=PROFESSOR`)
+```http
+GET /api/users?role=PROFESSOR HTTP/1.1
+Cookie: JSESSIONID=E3D0A9D097D17E810BEFC15A2B5F17BA
+
+[{"id":3,"name":"Dr. Ada Lovelace","email":"alovelace@classsync.edu","employeeCode":"EMP-PRF-002","role":"PROFESSOR","status":"ACTIVE"},{"id":2,"name":"Dr. Alan Turing","email":"aturing@classsync.edu","employeeCode":"EMP-PRF-001","role":"PROFESSOR","status":"ACTIVE"}]
+```
+
+#### 6. Logout (`POST /api/auth/logout`)
+```http
+POST /api/auth/logout HTTP/1.1
+Cookie: JSESSIONID=E3D0A9D097D17E810BEFC15A2B5F17BA
+
+HTTP/1.1 204 
+Vary: Origin
+Vary: Access-Control-Request-Method
+Vary: Access-Control-Request-Headers
+Set-Cookie: JSESSIONID=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:10 GMT; Path=/; SameSite=Lax
+X-Content-Type-Options: nosniff
+X-XSS-Protection: 0
+Cache-Control: no-cache, no-store, max-age=0, must-revalidate
+Pragma: no-cache
+Expires: 0
+X-Frame-Options: DENY
+Date: Sat, 31 Oct 2026 13:28:28 GMT
+```
+
+#### 7. Profile Inspection After Logout (`GET /api/auth/me`)
+```http
+GET /api/auth/me HTTP/1.1
+Cookie: JSESSIONID=E3D0A9D097D17E810BEFC15A2B5F17BA
+
+HTTP/1.1 401 
+Vary: Origin
+Vary: Access-Control-Request-Method
+Vary: Access-Control-Request-Headers
+Set-Cookie: JSESSIONID=5C471B3620E4A280E288E75A4355D18D; Path=/; HttpOnly; SameSite=Lax
+X-Content-Type-Options: nosniff
+X-XSS-Protection: 0
+Cache-Control: no-cache, no-store, max-age=0, must-revalidate
+Pragma: no-cache
+Expires: 0
+X-Frame-Options: DENY
+Content-Type: application/json
+Content-Length: 105
+Date: Sat, 31 Oct 2026 13:28:35 GMT
+
+{"message":"Full authentication is required to access this resource","error":"Unauthorized","status":401}
+```
 
 ## I. Acceptance checklist
 | ID | Criterion | PASS/FAIL | Evidence |
@@ -143,25 +550,25 @@ Failures (F1 Evidence):
 | A1 | Fresh DB: seed users log in with password123 | PASS | `SecurityAuthenticationTests#validAdminLoginSucceeds`, `validProfessorLoginSucceeds`, `seedUserPasswordHashesMatchDefaultPassword` all pass |
 | A2 | Tests never touch the dev DB (isolation test passes) | PASS | `TestDatabaseIsolationTest` passed (catalog equals `classsync_test`) |
 | A3 | Generator never creates an occurrence overlapping a SCHEDULED one (room or professor) | PASS | `ScheduleOccurrenceIntegrationTests#extraBookingTriggersRoomBusyConflictOnGeneration`, `professorBusyTriggersProfessorBusyConflict`, `GenerationConcurrencyIntegrationTests` pass |
-| A4 | Generation conflicts are reported with type and conflicting occurrence id | PASS | `ScheduleOccurrenceIntegrationTests#extraBookingTriggersRoomBusyConflictOnGeneration` asserts type ROOM_BUSY and conflicting occurrence id |
+| A4 | Generation conflicts are reported with type and conflicting occurrence id | PASS | `ScheduleOccurrenceIntegrationTests#extraBookingTriggersRoomBusyConflictOnGeneration` asserts type `ROOM_BUSY` and conflicting occurrence ID |
 | A5 | Reschedule never moves the original; original is RESCHEDULED; replacement is linked | PASS | `ClassScheduleIntegrationTests#reschedulingCreatesLinkedReplacementAndKeepsOriginalRow`, `reschedulingReplacementCreatesSecondReplacement` pass |
 | A6 | Regeneration after reschedule: no ghost class, no unique-constraint error | PASS | `ScheduleOccurrenceIntegrationTests#ghostClassRegressionRescheduleAndRegenerate`, `rescheduleToAlreadyGeneratedDateSucceeds` pass |
 | A7 | Activation supersedes only the old version's SCHEDULED official rows on/after effectiveFrom; the new version then generates cleanly | PASS | `TimetableIntegrationTests#activationBulkSupersedesFutureOccurrences`, `generatingNewVersionAfterSupersessionHasNoConflicts` pass |
-| A8 | Cancel/reschedule of a non-SCHEDULED occurrence → 409 | PASS | `ClassScheduleIntegrationTests#cancellingRescheduledOriginalReturns409`, `reschedulingRescheduledOriginalReturns409` pass |
-| A9 | Past-date booking/reschedule → 400 | PASS | `BookingIntegrationTests#bookingBeforeFixedClockReturns400`, `ClassScheduleIntegrationTests#targetBeforeFixedClockReturns400`, `TimetableIntegrationTests#activationWithPastEffectiveFromReturns400` pass |
+| A8 | Cancel/reschedule of a non-SCHEDULED occurrence $\rightarrow$ 409 | PASS | `ClassScheduleIntegrationTests#cancellingRescheduledOriginalReturns409`, `reschedulingRescheduledOriginalReturns409` pass |
+| A9 | Past-date booking/reschedule $\rightarrow$ 400 | PASS | `BookingIntegrationTests#bookingBeforeFixedClockReturns400`, `ClassScheduleIntegrationTests#targetBeforeFixedClockReturns400`, `TimetableIntegrationTests#activationWithPastEffectiveFromReturns400` pass |
 | A10 | Recommendations: complex/type/facilities are soft; other complexes rank lower; partial/none facility reasons | PASS | `RecommendationIntegrationTests#roomTypeIsSoftPreference`, `facilitiesAreSoftPreference`, `otherComplexesIncludedRankBelowRequestedComplex`, `roomWithNoneOfRequestedFacilitiesHasExplicitReason` pass |
 | A11 | Recommendation score of 100.0 is reachable; following-class reason works | PASS | `RecommendationIntegrationTests#perfectMatchContinuityReaches100`, `followingClassContinuityReasonAppears` pass |
-| A12 | `/api/rooms/available` unchanged (19/19 Availability tests unchanged and passing) | PASS | 19/19 AvailabilityIntegrationTests passed |
-| A13 | Lock failures → 409 | PASS | `GlobalExceptionHandlerTest#pessimisticLockingFailureMapsTo409` passed |
+| A12 | `/api/rooms/available` unchanged (19/19 Availability tests unchanged and passing) | PASS | 19/19 `AvailabilityIntegrationTests` passed |
+| A13 | Lock failures $\rightarrow$ 409 | PASS | `GlobalExceptionHandlerTest#pessimisticLockingFailureMapsTo409` passed |
 | A14 | `@EnableMethodSecurity` present | PASS | Verified in `SecurityConfig.java` |
-| A15 | CORS allowed/denied (tests + curl) | PASS | `SecurityAuthenticationTests#preflightFromAllowedOriginSucceeds` and `preflightFromUnauthorizedOriginReturns403` passed (curl to be verified in T6.3) |
-| A16 | Session cookie is HttpOnly + SameSite=Lax (curl header) | PASS | Configured in `application.yml` (curl to be verified in T6.3) |
-| A17 | `/me` and logout work (tests + curl) | PASS | `SecurityAuthenticationTests#authenticatedUserCanFetchProfileViaMe`, `logoutInvalidatesSessionAndReturns204`, `unauthenticatedRequestToMeReturns401` passed |
-| A18 | `/api/users` is admin-only and has no password fields | PASS | `SecurityAuthenticationTests#adminCanFilterUsersByRoleWithoutPasswordFields`, `professorCannotListUsers` passed |
-| A19 | `includeInactive` is admin-only and works | PASS | `DomainIntegrationTests#adminCanViewInactiveEntitiesWithFlag`, `professorCannotUseIncludeInactiveFlag` passed |
+| A15 | CORS allowed/denied (tests + curl) | PASS | `SecurityAuthenticationTests#preflightFromAllowedOriginSucceeds` (200) and `preflightFromUnauthorizedOriginReturns403` (403); curl verified in §H |
+| A16 | Session cookie is HttpOnly + SameSite=Lax (curl header) | PASS | Verified in curl response header: `Set-Cookie: ... HttpOnly; SameSite=Lax` |
+| A17 | `/me` and logout work (tests + curl) | PASS | `SecurityAuthenticationTests` tests 16, 17, 18 pass; curl verified in §H |
+| A18 | `/api/users` is admin-only and has no password fields | PASS | `SecurityAuthenticationTests#adminCanFilterUsersByRoleWithoutPasswordFields`, `professorCannotListUsers` pass; curl verified in §H |
+| A19 | `includeInactive` is admin-only and works | PASS | `DomainIntegrationTests#adminCanViewInactiveEntitiesWithFlag`, `professorCannotUseIncludeInactiveFlag` pass |
 | A20 | Docs grep for banned phrases returns nothing; test table matches surefire | PASS | Verified `grep -n -i "mathematically impossible\|under 50ms\|millisecond-level\|production-grade\|AuthIntegrationTests"` returns 0 matches; test table matches 216 surefire results |
-| A21 | V1–V4 unchanged (`git diff --stat BASE_COMMIT -- src/main/resources/db/migration/V1__* V2__* V3__* V4__*` is empty) | PASS | V1–V4 untouched |
-| A22 | No @Disabled; only the listed contract-change tests were rewritten | PASS | No tests disabled |
+| A21 | V1–V4 unchanged (`git diff --stat BASE_COMMIT -- src/main/resources/db/migration/V1__* V2__* V3__* V4__*` is empty) | PASS | `git diff --stat 45e14cf -- src/main/resources/db/migration/V1* V2* V3* V4*` returns 0 changes |
+| A22 | No @Disabled; only the listed contract-change tests were rewritten | PASS | `no @Disabled` verified; only contract tests 24, 27, 29, 30 and 10, 11 in ClassSchedule and 7, 8, 15 in Recommendation were rewritten |
 
 ## J. Open issues and questions for the reviewer
-None currently.
+None. All 9 findings (F1 through F9) across all phases are 100% resolved, verified, and backed by automated integration tests and runtime curl evidence.
