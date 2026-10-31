@@ -2,12 +2,9 @@ package com.classsync.service;
 
 import com.classsync.dto.recommendation.RecommendationResponse;
 import com.classsync.dto.recommendation.RecommendationRoomSummary;
-import com.classsync.entity.Facility;
-import com.classsync.entity.Room;
-import com.classsync.entity.RoomType;
-import com.classsync.entity.User;
-import com.classsync.entity.UserRole;
+import com.classsync.entity.*;
 import com.classsync.exception.BadRequestException;
+import com.classsync.repository.ComplexRepository;
 import com.classsync.repository.ScheduleOccurrenceRepository;
 import com.classsync.repository.UserRepository;
 import org.springframework.stereotype.Service;
@@ -26,13 +23,16 @@ public class RecommendationService {
     private final AvailabilityService availabilityService;
     private final ScheduleOccurrenceRepository scheduleOccurrenceRepository;
     private final UserRepository userRepository;
+    private final ComplexRepository complexRepository;
 
     public RecommendationService(AvailabilityService availabilityService,
-                                 ScheduleOccurrenceRepository scheduleOccurrenceRepository,
-                                 UserRepository userRepository) {
+                                  ScheduleOccurrenceRepository scheduleOccurrenceRepository,
+                                  UserRepository userRepository,
+                                  ComplexRepository complexRepository) {
         this.availabilityService = availabilityService;
         this.scheduleOccurrenceRepository = scheduleOccurrenceRepository;
         this.userRepository = userRepository;
+        this.complexRepository = complexRepository;
     }
 
     @Transactional(readOnly = true)
@@ -60,14 +60,24 @@ public class RecommendationService {
             throw new BadRequestException("Capacity must be at least 1");
         }
 
+        // Still validate facility ids with parseAndValidateFacilityIds (400, unchanged)
         Set<Integer> requestedFacilityIds = availabilityService.parseAndValidateFacilityIds(facilitiesParam);
+
+        // If complexId is given but is not an existing active complex, return 400 "Requested complex not found or inactive: <id>"
+        if (complexId != null) {
+            Complex complex = complexRepository.findById(complexId)
+                    .orElseThrow(() -> new BadRequestException("Requested complex not found or inactive: " + complexId));
+            if (!Boolean.TRUE.equals(complex.getActive())) {
+                throw new BadRequestException("Requested complex not found or inactive: " + complexId);
+            }
+        }
 
         User currentUser = userRepository.findByEmail(userEmail)
                 .orElseThrow(() -> new IllegalStateException("Authenticated user not found with email: " + userEmail));
 
-        // Delegate to AvailabilityService to obtain hard-constraint eligible candidate rooms
+        // Obtain hard-constraint eligible candidates: call getAvailableRoomEntities with null for complexId, roomType, facilitiesParam
         List<Room> candidateRooms = availabilityService.getAvailableRoomEntities(
-                complexId, date, startTime, endTime, capacity, roomType, facilitiesParam, userEmail
+                null, date, startTime, endTime, capacity, null, null, userEmail
         );
 
         if (candidateRooms.isEmpty()) {
@@ -97,12 +107,25 @@ public class RecommendationService {
         long maxUtil = Collections.max(utilizationMap.values());
 
         // 2. Query continuity for authenticated professor
-        Set<Integer> adjacentRoomIds = Collections.emptySet();
+        Map<Integer, Set<String>> continuityReasons = new HashMap<>();
         if (currentUser.getRole() == UserRole.PROFESSOR) {
-            List<Integer> adjacent = scheduleOccurrenceRepository.findAdjacentRoomIdsForProfessor(
+            List<Object[]> adjRows = scheduleOccurrenceRepository.findAdjacentOccurrencesForProfessor(
                     currentUser.getId(), date, startTime, endTime
             );
-            adjacentRoomIds = new HashSet<>(adjacent);
+            for (Object[] row : adjRows) {
+                Integer rId = (Integer) row[0];
+                LocalTime occStart = (LocalTime) row[1];
+                LocalTime occEnd = (LocalTime) row[2];
+
+                if (occEnd.equals(startTime)) {
+                    continuityReasons.computeIfAbsent(rId, k -> new LinkedHashSet<>())
+                            .add("Professor has a preceding class in this room");
+                }
+                if (occStart.equals(endTime)) {
+                    continuityReasons.computeIfAbsent(rId, k -> new LinkedHashSet<>())
+                            .add("Professor has a following class in this room");
+                }
+            }
         }
 
         // 3. Score and explain each candidate room
@@ -133,9 +156,10 @@ public class RecommendationService {
                     reasons.add("Room is in the requested complex");
                 } else {
                     locationFit = 0.0;
+                    reasons.add("Room is in a different complex than requested");
                 }
             } else {
-                locationFit = 0.5;
+                locationFit = 1.0;
             }
 
             // C. UtilizationBalance (Weight 20)
@@ -165,6 +189,8 @@ public class RecommendationService {
                     roomTypeScore = (room.getRoomType() == roomType) ? 1.0 : 0.0;
                     if (roomTypeScore == 1.0) {
                         reasons.add("Room matches requested room type");
+                    } else {
+                        reasons.add("Room type differs from requested room type");
                     }
                 }
 
@@ -180,8 +206,10 @@ public class RecommendationService {
                     facilityScore = (double) matchedCount / requestedFacilityIds.size();
                     if (facilityScore >= 1.0) {
                         reasons.add("Room matches requested facilities");
-                    } else if (facilityScore > 0.0) {
-                        reasons.add("Room partially matches requested facilities");
+                    } else if (matchedCount > 0) {
+                        reasons.add("Room partially matches requested facilities (" + matchedCount + " of " + requestedFacilityIds.size() + ")");
+                    } else {
+                        reasons.add("Room has none of the requested facilities");
                     }
                 }
 
@@ -196,9 +224,10 @@ public class RecommendationService {
 
             // E. Continuity (Weight 10)
             double continuity = 0.0;
-            if (adjacentRoomIds.contains(room.getId())) {
+            Set<String> contReasons = continuityReasons.get(room.getId());
+            if (contReasons != null && !contReasons.isEmpty()) {
                 continuity = 1.0;
-                reasons.add("Professor has a preceding class in this room");
+                reasons.addAll(contReasons);
             }
 
             // Calculate total weighted score clamped to 0.0 - 100.0

@@ -178,6 +178,21 @@ public interface ScheduleOccurrenceRepository extends JpaRepository<ScheduleOccu
     );
 
     @Query("""
+        SELECT o.room.id, o.startTime, o.endTime
+        FROM ScheduleOccurrence o
+        WHERE o.professor.id = :professorId
+          AND o.scheduleDate = :date
+          AND o.status = com.classsync.entity.ScheduleStatus.SCHEDULED
+          AND (o.endTime = :startTime OR o.startTime = :endTime)
+    """)
+    List<Object[]> findAdjacentOccurrencesForProfessor(
+            @Param("professorId") Integer professorId,
+            @Param("date") LocalDate date,
+            @Param("startTime") java.time.LocalTime startTime,
+            @Param("endTime") java.time.LocalTime endTime
+    );
+
+    @Query("""
         SELECT o FROM ScheduleOccurrence o
         WHERE o.status = com.classsync.entity.ScheduleStatus.SCHEDULED
           AND o.scheduleDate BETWEEN :startDate AND :endDate

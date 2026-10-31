@@ -14,6 +14,7 @@
 ## B. Commits
 - `5a03337` `test(11H-P0): isolate tests in classsync_test + baseline`
 - `a370ff2` `fix(11H-P1): seed hashes, clock, lock-failure mapping, method security`
+- `3e3b7f9` `fix(11H-P2): live-model integrity (reschedule, generation, activation)`
 
 ## C. Files changed
 (Updated per phase commit)
@@ -36,9 +37,9 @@
 | T2.5 | DONE | `ScheduleOccurrenceService.java`, `GenerateOccurrencesResponse.java`, `GenerationConflict.java` | Generator locks V->U->R, single-query conflict detection, conflict report |
 | T2.6 | DONE | `TimetableVersionService.java`, `TimetableActivationResponse.java` | Version activation locking, superseding future official rows, effectiveFrom |
 | T2.7 | DONE | `ClassScheduleIntegrationTests`, `BookingIntegrationTests`, `ScheduleOccurrenceIntegrationTests`, `TimetableIntegrationTests`, `GenerationConcurrencyIntegrationTests` | All 201 tests passing including N1-N18 |
-| T3.1 | NOT STARTED | `RecommendationService.java` | Hard vs soft constraints |
-| T3.2 | NOT STARTED | `RecommendationService.java` | Scoring and reasons |
-| T3.3 | NOT STARTED | `RecommendationIntegrationTests.java` | Tests N19-N22 |
+| T3.1 | DONE | `RecommendationService.java` | Hard vs soft constraints: candidates fetched without soft filters |
+| T3.2 | DONE | `RecommendationService.java`, `ScheduleOccurrenceRepository.java` | Exact reason strings, directional continuity, 1.0 default location fit |
+| T3.3 | DONE | `RecommendationIntegrationTests.java` | Rewritten 7, 8, 15 and added N19-N22 |
 | T4.1 | NOT STARTED | `SecurityConfig.java`, `application.yml` | CORS configuration & tests |
 | T4.2 | NOT STARTED | `application.yml`, `AuthController.java` | Cookie flags & session fixation |
 | T4.3 | NOT STARTED | `AuthController.java`, `SecurityConfig.java` | `/me` and logout |
@@ -84,6 +85,9 @@ Failures (F1 Evidence):
   | `ClassScheduleIntegrationTests` | 30. Concurrent rescheduling of the same occurrence does not cause lost updates | 30. Concurrent rescheduling of the same occurrence does not cause lost updates | Both succeed sequentially mutating same row | Exactly 1 success (new replacement created) and 1 conflict (DuplicateResourceException); original is RESCHEDULED | F5 non-destructive rescheduling |
   | `ClassScheduleIntegrationTests` | 10. Professor reschedules own occurrence -> 200 | 10. Professor reschedules own occurrence -> 200 | Returned id == original id | Returned id isNumber(), rescheduledFromId == original id | F5 non-destructive rescheduling |
   | `ClassScheduleIntegrationTests` | 11. Admin reschedules another professor's occurrence -> 200 | 11. Admin reschedules another professor's occurrence -> 200 | Returned id == original id | Returned id isNumber(), rescheduledFromId == original id | F5 non-destructive rescheduling |
+  | `RecommendationIntegrationTests` | 7. Room type filtering as hard constraint | 7. Room type is a soft preference | Hard filter on roomType (non-LAB excluded) | Soft preference: LAB ranks first, non-LAB present with diff reason and lower score | F6 soft preference engine |
+  | `RecommendationIntegrationTests` | 8. Required facilities use AND semantics | 8. Facilities are a soft preference | Hard filter (SEC-101 excluded) | Soft preference: SEC-301 full match, SEC-101 partial match (1 of 3) present with lower score | F6 soft preference engine |
+  | `RecommendationIntegrationTests` | 15. Requested complex receives appropriate location score | 15. Other complexes are included but rank below the requested complex | Only complex 1 rooms returned | Complex 2 rooms included with different complex reason and rank below complex 1 | F6 soft preference engine |
 
 - F4. New tests:
   | ID (N1…N22, T4.x, T1.x) | Class | Method name | What it proves (finding) |
@@ -108,6 +112,10 @@ Failures (F1 Evidence):
   | N16 | `TimetableIntegrationTests` | `activationWithPastEffectiveFromReturns400` | Activation with effectiveFrom before today returns 400 (F4) |
   | N17 | `TimetableIntegrationTests` | `activationWithoutEffectiveFromDefaultsToFixedClock` | Activation without effectiveFrom defaults to today (fixed clock) (F4) |
   | N18 | `GenerationConcurrencyIntegrationTests` | `concurrentGenerationAndBookingNeverProduceOverlappingScheduledRows` | Concurrent generation and booking serialize with no overlapping SCHEDULED rows (F3/F7) |
+  | N19 | `RecommendationIntegrationTests` | `unknownOrInactiveComplexIdReturns400` | Unknown or inactive complexId returns 400 Bad Request (F6) |
+  | N20 | `RecommendationIntegrationTests` | `perfectMatchContinuityReaches100` | Perfect match with preceding continuity scores exactly 100.0, admin scores 90.0 (F6) |
+  | N21 | `RecommendationIntegrationTests` | `followingClassContinuityReasonAppears` | Following-class continuity reason appears for class starting at endTime (F6) |
+  | N22 | `RecommendationIntegrationTests` | `roomWithNoneOfRequestedFacilitiesHasExplicitReason` | Room with none of requested facilities receives explicit none reason (F6) |
 
 - F5. `grep -rn "@Disabled" src/test` output, and the @Test count at BASE_COMMIT vs HEAD:
   `git grep -hE "^\s*@Test\s*$" BASE_COMMIT -- src/test | wc -l`  vs  `grep -rhE "^\s*@Test\s*$" src/test | wc -l`
@@ -130,8 +138,8 @@ Failures (F1 Evidence):
 | A7 | Activation supersedes only the old version's SCHEDULED official rows on/after effectiveFrom; the new version then generates cleanly | PASS | `TimetableIntegrationTests#activationBulkSupersedesFutureOccurrences`, `generatingNewVersionAfterSupersessionHasNoConflicts` pass |
 | A8 | Cancel/reschedule of a non-SCHEDULED occurrence → 409 | PASS | `ClassScheduleIntegrationTests#cancellingRescheduledOriginalReturns409`, `reschedulingRescheduledOriginalReturns409` pass |
 | A9 | Past-date booking/reschedule → 400 | PASS | `BookingIntegrationTests#bookingBeforeFixedClockReturns400`, `ClassScheduleIntegrationTests#targetBeforeFixedClockReturns400`, `TimetableIntegrationTests#activationWithPastEffectiveFromReturns400` pass |
-| A10 | Recommendations: complex/type/facilities are soft; other complexes rank lower; partial/none facility reasons | NOT STARTED | |
-| A11 | Recommendation score of 100.0 is reachable; following-class reason works | NOT STARTED | |
+| A10 | Recommendations: complex/type/facilities are soft; other complexes rank lower; partial/none facility reasons | PASS | `RecommendationIntegrationTests#roomTypeIsSoftPreference`, `facilitiesAreSoftPreference`, `otherComplexesIncludedRankBelowRequestedComplex`, `roomWithNoneOfRequestedFacilitiesHasExplicitReason` pass |
+| A11 | Recommendation score of 100.0 is reachable; following-class reason works | PASS | `RecommendationIntegrationTests#perfectMatchContinuityReaches100`, `followingClassContinuityReasonAppears` pass |
 | A12 | `/api/rooms/available` unchanged (19/19 Availability tests unchanged and passing) | PASS | 19/19 AvailabilityIntegrationTests passed |
 | A13 | Lock failures → 409 | PASS | `GlobalExceptionHandlerTest#pessimisticLockingFailureMapsTo409` passed |
 | A14 | `@EnableMethodSecurity` present | PASS | Verified in `SecurityConfig.java` |

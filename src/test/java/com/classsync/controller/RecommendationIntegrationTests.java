@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.Matchers.*;
@@ -166,34 +167,75 @@ class RecommendationIntegrationTests {
     }
 
     @Test
-    @DisplayName("7. Room type filtering as hard constraint")
+    @DisplayName("7. Room type is a soft preference")
     @WithMockUser(username = "admin@classsync.edu", roles = {"ADMIN"})
-    void roomTypeFiltering() throws Exception {
-        mockMvc.perform(get("/api/rooms/recommendations")
+    void roomTypeIsSoftPreference() throws Exception {
+        MvcResult res = mockMvc.perform(get("/api/rooms/recommendations")
                         .param("date", testDate.toString())
                         .param("startTime", "10:00")
                         .param("endTime", "11:00")
                         .param("roomType", "LAB"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", is(not(empty()))))
-                .andExpect(jsonPath("$[*].room.roomType", everyItem(is("LAB"))));
+                .andReturn();
+
+        JsonNode root = objectMapper.readTree(res.getResponse().getContentAsString());
+        assertEquals("LAB", root.get(0).get("room").get("roomType").asText());
+        List<String> firstReasons = new ArrayList<>();
+        root.get(0).get("reasons").forEach(r -> firstReasons.add(r.asText()));
+        assertTrue(firstReasons.contains("Room matches requested room type"));
+
+        boolean foundNonLab = false;
+        double labScore = root.get(0).get("score").asDouble();
+        for (int i = 1; i < root.size(); i++) {
+            JsonNode item = root.get(i);
+            if (!"LAB".equals(item.get("room").get("roomType").asText())) {
+                foundNonLab = true;
+                assertTrue(item.get("score").asDouble() <= labScore);
+                List<String> reasons = new ArrayList<>();
+                item.get("reasons").forEach(r -> reasons.add(r.asText()));
+                assertTrue(reasons.contains("Room type differs from requested room type"));
+            }
+        }
+        assertTrue(foundNonLab, "Non-LAB rooms should be present in recommendations");
     }
 
     @Test
-    @DisplayName("8. Required facilities use AND semantics")
+    @DisplayName("8. Facilities are a soft preference")
     @WithMockUser(username = "admin@classsync.edu", roles = {"ADMIN"})
-    void requiredFacilitiesUseAndSemantics() throws Exception {
+    void facilitiesAreSoftPreference() throws Exception {
         // SEC-301 has facilities 1, 2, 3, 5
         // Request 1, 2, 5
-        mockMvc.perform(get("/api/rooms/recommendations")
+        MvcResult res = mockMvc.perform(get("/api/rooms/recommendations")
                         .param("date", testDate.toString())
                         .param("startTime", "10:00")
                         .param("endTime", "11:00")
                         .param("facilities", "1,2,5"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", is(not(empty()))))
-                .andExpect(jsonPath("$[*].room.roomNumber", hasItem("SEC-301")))
-                .andExpect(jsonPath("$[*].room.roomNumber", not(hasItem("SEC-101")))); // SEC-101 lacks 2 and 5
+                .andReturn();
+
+        JsonNode root = objectMapper.readTree(res.getResponse().getContentAsString());
+
+        JsonNode sec301Node = null;
+        JsonNode sec101Node = null;
+        for (JsonNode item : root) {
+            String roomNum = item.get("room").get("roomNumber").asText();
+            if ("SEC-301".equals(roomNum)) sec301Node = item;
+            if ("SEC-101".equals(roomNum)) sec101Node = item;
+        }
+
+        assertNotNull(sec301Node, "SEC-301 must be present");
+        assertNotNull(sec101Node, "SEC-101 must be present");
+
+        List<String> sec301Reasons = new ArrayList<>();
+        sec301Node.get("reasons").forEach(r -> sec301Reasons.add(r.asText()));
+        assertTrue(sec301Reasons.contains("Room matches requested facilities"));
+
+        List<String> sec101Reasons = new ArrayList<>();
+        sec101Node.get("reasons").forEach(r -> sec101Reasons.add(r.asText()));
+        assertTrue(sec101Reasons.contains("Room partially matches requested facilities (1 of 3)"));
+        assertTrue(sec101Node.get("score").asDouble() < sec301Node.get("score").asDouble());
     }
 
     @Test
@@ -323,7 +365,7 @@ class RecommendationIntegrationTests {
     }
 
     @Test
-    @DisplayName("15. Requested complex receives appropriate location score")
+    @DisplayName("15. Other complexes are included but rank below the requested complex")
     @WithMockUser(username = "admin@classsync.edu", roles = {"ADMIN"})
     void requestedComplexReceivesAppropriateLocationScore() throws Exception {
         MvcResult result = mockMvc.perform(get("/api/rooms/recommendations")
@@ -333,19 +375,31 @@ class RecommendationIntegrationTests {
                         .param("complexId", "1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", is(not(empty()))))
-                .andExpect(jsonPath("$[*].room.complexId", everyItem(is(1))))
                 .andReturn();
 
         JsonNode root = objectMapper.readTree(result.getResponse().getContentAsString());
-        JsonNode firstReasons = root.get(0).get("reasons");
-        boolean hasComplexReason = false;
-        for (JsonNode r : firstReasons) {
-            if (r.asText().contains("requested complex")) {
-                hasComplexReason = true;
-                break;
+        boolean hasComplex2 = false;
+        double minComplex1Score = Double.MAX_VALUE;
+        double maxComplex2Score = -1.0;
+
+        for (JsonNode item : root) {
+            int compId = item.get("room").get("complexId").asInt();
+            double score = item.get("score").asDouble();
+            List<String> reasons = new ArrayList<>();
+            item.get("reasons").forEach(r -> reasons.add(r.asText()));
+
+            if (compId == 1) {
+                assertTrue(reasons.contains("Room is in the requested complex"));
+                if (score < minComplex1Score) minComplex1Score = score;
+            } else if (compId == 2) {
+                hasComplex2 = true;
+                assertTrue(reasons.contains("Room is in a different complex than requested"));
+                if (score > maxComplex2Score) maxComplex2Score = score;
             }
         }
-        assertTrue(hasComplexReason, "Reasons should mention requested complex");
+
+        assertTrue(hasComplex2, "Complex-2 rooms must be included");
+        assertTrue(minComplex1Score > maxComplex2Score, "Every complex-1 room must score higher than every complex-2 room");
     }
 
     @Test
@@ -754,5 +808,130 @@ class RecommendationIntegrationTests {
                 assertTrue(hasLowUtil, "Cancelled occurrences must not count towards utilization");
             }
         }
+    }
+
+    // =========================================================================
+    // Prompt 11H Tests (N19–N22)
+    // =========================================================================
+
+    @Test
+    @DisplayName("N19. Unknown or inactive complexId returns 400 Bad Request")
+    @WithMockUser(username = "admin@classsync.edu", roles = {"ADMIN"})
+    void unknownOrInactiveComplexIdReturns400() throws Exception {
+        // Unknown complex 99999
+        mockMvc.perform(get("/api/rooms/recommendations")
+                        .param("date", testDate.toString())
+                        .param("startTime", "10:00")
+                        .param("endTime", "11:00")
+                        .param("complexId", "99999"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message", is("Requested complex not found or inactive: 99999")));
+
+        // Inactive complex
+        Complex inact = complexRepository.save(new Complex("Inactive Comp", "INACTX", false));
+        mockMvc.perform(get("/api/rooms/recommendations")
+                        .param("date", testDate.toString())
+                        .param("startTime", "10:00")
+                        .param("endTime", "11:00")
+                        .param("complexId", inact.getId().toString()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message", is("Requested complex not found or inactive: " + inact.getId())));
+    }
+
+    @Test
+    @DisplayName("N20. Perfect match with continuity achieves 100.0 score, while admin request scores 90.0")
+    void perfectMatchContinuityReaches100() throws Exception {
+        Room sec301 = roomRepository.findByComplexIdAndRoomNumber(1, "SEC-301").orElseThrow();
+        User turing = userRepository.findByEmail("aturing@classsync.edu").orElseThrow();
+
+        // Turing has a preceding class in SEC-301: 09:00 - 10:00
+        scheduleOccurrenceRepository.save(
+                createOccurrence(sec301, turing, testDate, LocalTime.of(9, 0), LocalTime.of(10, 0), ScheduleStatus.SCHEDULED)
+        );
+
+        // 1. Professor Turing requests 10:00 - 11:00 with capacity=120
+        MvcResult profRes = mockMvc.perform(get("/api/rooms/recommendations")
+                        .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("aturing@classsync.edu").roles("PROFESSOR"))
+                        .param("date", testDate.toString())
+                        .param("startTime", "10:00")
+                        .param("endTime", "11:00")
+                        .param("capacity", "120"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode profRoot = objectMapper.readTree(profRes.getResponse().getContentAsString());
+        assertEquals(1, profRoot.size());
+        assertEquals("SEC-301", profRoot.get(0).get("room").get("roomNumber").asText());
+        assertEquals(100.0, profRoot.get(0).get("score").asDouble(), 0.001);
+
+        // 2. Admin requests the same slot with capacity=120 (no continuity)
+        MvcResult adminRes = mockMvc.perform(get("/api/rooms/recommendations")
+                        .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("admin@classsync.edu").roles("ADMIN"))
+                        .param("date", testDate.toString())
+                        .param("startTime", "10:00")
+                        .param("endTime", "11:00")
+                        .param("capacity", "120"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode adminRoot = objectMapper.readTree(adminRes.getResponse().getContentAsString());
+        assertEquals(1, adminRoot.size());
+        assertEquals("SEC-301", adminRoot.get(0).get("room").get("roomNumber").asText());
+        assertEquals(90.0, adminRoot.get(0).get("score").asDouble(), 0.001);
+    }
+
+    @Test
+    @DisplayName("N21. Following-class continuity reason appears for a class starting exactly at endTime")
+    void followingClassContinuityReasonAppears() throws Exception {
+        Room sec301 = roomRepository.findByComplexIdAndRoomNumber(1, "SEC-301").orElseThrow();
+        User turing = userRepository.findByEmail("aturing@classsync.edu").orElseThrow();
+
+        // Turing has a following class in SEC-301: 11:00 - 12:00
+        scheduleOccurrenceRepository.save(
+                createOccurrence(sec301, turing, testDate, LocalTime.of(11, 0), LocalTime.of(12, 0), ScheduleStatus.SCHEDULED)
+        );
+
+        // Turing requests 10:00 - 11:00
+        MvcResult res = mockMvc.perform(get("/api/rooms/recommendations")
+                        .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("aturing@classsync.edu").roles("PROFESSOR"))
+                        .param("date", testDate.toString())
+                        .param("startTime", "10:00")
+                        .param("endTime", "11:00")
+                        .param("capacity", "120"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode root = objectMapper.readTree(res.getResponse().getContentAsString());
+        List<String> reasons = new ArrayList<>();
+        root.get(0).get("reasons").forEach(r -> reasons.add(r.asText()));
+        assertTrue(reasons.contains("Professor has a following class in this room"));
+        assertEquals(100.0, root.get(0).get("score").asDouble(), 0.001);
+    }
+
+    @Test
+    @DisplayName("N22. Room with none of requested facilities is listed with 'Room has none of the requested facilities'")
+    @WithMockUser(username = "admin@classsync.edu", roles = {"ADMIN"})
+    void roomWithNoneOfRequestedFacilitiesHasExplicitReason() throws Exception {
+        // Request facility 5 (Audio System). SEC-101 has only facility 1 (Projector)
+        MvcResult res = mockMvc.perform(get("/api/rooms/recommendations")
+                        .param("date", testDate.toString())
+                        .param("startTime", "10:00")
+                        .param("endTime", "11:00")
+                        .param("facilities", "5"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode root = objectMapper.readTree(res.getResponse().getContentAsString());
+        JsonNode sec101Node = null;
+        for (JsonNode item : root) {
+            if ("SEC-101".equals(item.get("room").get("roomNumber").asText())) {
+                sec101Node = item;
+                break;
+            }
+        }
+        assertNotNull(sec101Node);
+        List<String> reasons = new ArrayList<>();
+        sec101Node.get("reasons").forEach(r -> reasons.add(r.asText()));
+        assertTrue(reasons.contains("Room has none of the requested facilities"));
     }
 }
