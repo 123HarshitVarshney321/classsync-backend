@@ -14,6 +14,8 @@ import java.util.Optional;
 public interface RoomRepository extends JpaRepository<Room, Integer> {
     Optional<Room> findByComplexIdAndRoomNumber(Integer complexId, String roomNumber);
 
+    List<Room> findByComplexId(Integer complexId);
+
     List<Room> findByComplexIdAndActiveTrue(Integer complexId);
 
     Optional<Room> findByIdAndActiveTrue(Integer id);

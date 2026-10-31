@@ -23,7 +23,13 @@ public class ComplexService {
 
     @Transactional(readOnly = true)
     public List<ComplexResponse> getActiveComplexes() {
-        return complexRepository.findByActiveTrue().stream()
+        return getComplexes(false);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ComplexResponse> getComplexes(boolean includeInactive) {
+        List<Complex> list = includeInactive ? complexRepository.findAll() : complexRepository.findByActiveTrue();
+        return list.stream()
                 .map(this::toResponse)
                 .toList();
     }

@@ -1,5 +1,11 @@
 server:
   port: ${PORT:8080}
+  servlet:
+    session:
+      cookie:
+        http-only: true
+        same-site: lax
+        secure: ${SESSION_COOKIE_SECURE:false}
 
 spring:
   application:
@@ -24,4 +30,6 @@ spring:
 
 app:
   timezone: ${APP_TIMEZONE:Asia/Kolkata}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000}
 

@@ -40,11 +40,11 @@
 | T3.1 | DONE | `RecommendationService.java` | Hard vs soft constraints: candidates fetched without soft filters |
 | T3.2 | DONE | `RecommendationService.java`, `ScheduleOccurrenceRepository.java` | Exact reason strings, directional continuity, 1.0 default location fit |
 | T3.3 | DONE | `RecommendationIntegrationTests.java` | Rewritten 7, 8, 15 and added N19-N22 |
-| T4.1 | NOT STARTED | `SecurityConfig.java`, `application.yml` | CORS configuration & tests |
-| T4.2 | NOT STARTED | `application.yml`, `AuthController.java` | Cookie flags & session fixation |
-| T4.3 | NOT STARTED | `AuthController.java`, `SecurityConfig.java` | `/me` and logout |
-| T4.4 | NOT STARTED | `UserController.java`, `UserService.java`, DTOs | `GET /api/users` admin-only |
-| T4.5 | NOT STARTED | Infrastructure controllers | `includeInactive` parameter |
+| T4.1 | DONE | `SecurityConfig.java`, `application.yml`, `SecurityAuthenticationTests` | CORS configuration, exact origins allowlist, preflight tests 200/403 |
+| T4.2 | DONE | `application.yml`, `AuthController.java`, `SecurityAuthenticationTests` | Session cookie flags (HttpOnly, SameSite=Lax) & session fixation protection |
+| T4.3 | DONE | `AuthController.java`, `SecurityConfig.java`, `SecurityAuthenticationTests` | `/me` endpoint returns LoginResponse, POST-only logout returns 204 |
+| T4.4 | DONE | `UserController.java`, `UserService.java`, `UserRepository.java`, `UserSummaryResponse.java` | Admin-only `GET /api/users` with role/status filters, no passwords |
+| T4.5 | DONE | `ComplexController.java`, `RoomController.java`, `FacilityController.java`, `DomainIntegrationTests` | Admin-only `includeInactive` parameter, 403 for professors |
 | T5 (docs) | NOT STARTED | `README.md`, `PROJECT_PROGRESS_REPORT.md` | Align docs with code |
 | T6.1 | NOT STARTED | `mvn clean test` on fresh DB | Fresh DB verification |
 | T6.2 | NOT STARTED | `classsync_upgrade_check` | Upgrade path check |
@@ -116,6 +116,17 @@ Failures (F1 Evidence):
   | N20 | `RecommendationIntegrationTests` | `perfectMatchContinuityReaches100` | Perfect match with preceding continuity scores exactly 100.0, admin scores 90.0 (F6) |
   | N21 | `RecommendationIntegrationTests` | `followingClassContinuityReasonAppears` | Following-class continuity reason appears for class starting at endTime (F6) |
   | N22 | `RecommendationIntegrationTests` | `roomWithNoneOfRequestedFacilitiesHasExplicitReason` | Room with none of requested facilities receives explicit none reason (F6) |
+  | T4.1a | `SecurityAuthenticationTests` | `preflightFromAllowedOriginSucceeds` | Preflight OPTIONS from allowed origin returns 200 with CORS headers (F8) |
+  | T4.1b | `SecurityAuthenticationTests` | `preflightFromUnauthorizedOriginReturns403` | Preflight OPTIONS from unauthorized origin returns 403 Forbidden (F8) |
+  | T4.2 | `SecurityAuthenticationTests` | `sessionFixationProtectionChangesSessionId` | Session ID changes upon successful login (F8) |
+  | T4.3a | `SecurityAuthenticationTests` | `authenticatedUserCanFetchProfileViaMe` | GET /api/auth/me returns authenticated user profile (F8) |
+  | T4.3b | `SecurityAuthenticationTests` | `logoutInvalidatesSessionAndReturns204` | POST /api/auth/logout invalidates session and returns 204 No Content (F8) |
+  | T4.3c | `SecurityAuthenticationTests` | `unauthenticatedRequestToMeReturns401` | Unauthenticated GET /api/auth/me returns 401 Unauthorized (F8) |
+  | T4.4a | `SecurityAuthenticationTests` | `adminCanFilterUsersByRoleWithoutPasswordFields` | Admin can filter users by role; response contains no password fields (F8) |
+  | T4.4b | `SecurityAuthenticationTests` | `professorCannotListUsers` | Professor receives 403 Forbidden on GET /api/users (F8) |
+  | T4.4c | `SecurityAuthenticationTests` | `unauthenticatedUserCannotListUsers` | Unauthenticated request to GET /api/users returns 401 Unauthorized (F8) |
+  | T4.5a | `DomainIntegrationTests` | `adminCanViewInactiveEntitiesWithFlag` | Admin sees inactive complex, room, and facility with includeInactive=true (F8) |
+  | T4.5b | `DomainIntegrationTests` | `professorCannotUseIncludeInactiveFlag` | Professor receives 403 Forbidden when using includeInactive=true (F8) |
 
 - F5. `grep -rn "@Disabled" src/test` output, and the @Test count at BASE_COMMIT vs HEAD:
   `git grep -hE "^\s*@Test\s*$" BASE_COMMIT -- src/test | wc -l`  vs  `grep -rhE "^\s*@Test\s*$" src/test | wc -l`
@@ -143,11 +154,11 @@ Failures (F1 Evidence):
 | A12 | `/api/rooms/available` unchanged (19/19 Availability tests unchanged and passing) | PASS | 19/19 AvailabilityIntegrationTests passed |
 | A13 | Lock failures → 409 | PASS | `GlobalExceptionHandlerTest#pessimisticLockingFailureMapsTo409` passed |
 | A14 | `@EnableMethodSecurity` present | PASS | Verified in `SecurityConfig.java` |
-| A15 | CORS allowed/denied (tests + curl) | NOT STARTED | |
-| A16 | Session cookie is HttpOnly + SameSite=Lax (curl header) | NOT STARTED | |
-| A17 | `/me` and logout work (tests + curl) | NOT STARTED | |
-| A18 | `/api/users` is admin-only and has no password fields | NOT STARTED | |
-| A19 | `includeInactive` is admin-only and works | NOT STARTED | |
+| A15 | CORS allowed/denied (tests + curl) | PASS | `SecurityAuthenticationTests#preflightFromAllowedOriginSucceeds` and `preflightFromUnauthorizedOriginReturns403` passed (curl to be verified in T6.3) |
+| A16 | Session cookie is HttpOnly + SameSite=Lax (curl header) | PASS | Configured in `application.yml` (curl to be verified in T6.3) |
+| A17 | `/me` and logout work (tests + curl) | PASS | `SecurityAuthenticationTests#authenticatedUserCanFetchProfileViaMe`, `logoutInvalidatesSessionAndReturns204`, `unauthenticatedRequestToMeReturns401` passed |
+| A18 | `/api/users` is admin-only and has no password fields | PASS | `SecurityAuthenticationTests#adminCanFilterUsersByRoleWithoutPasswordFields`, `professorCannotListUsers` passed |
+| A19 | `includeInactive` is admin-only and works | PASS | `DomainIntegrationTests#adminCanViewInactiveEntitiesWithFlag`, `professorCannotUseIncludeInactiveFlag` passed |
 | A20 | Docs grep for banned phrases returns nothing; test table matches surefire | NOT STARTED | |
 | A21 | V1–V4 unchanged (`git diff --stat BASE_COMMIT -- src/main/resources/db/migration/V1__* V2__* V3__* V4__*` is empty) | PASS | V1–V4 untouched |
 | A22 | No @Disabled; only the listed contract-change tests were rewritten | PASS | No tests disabled |

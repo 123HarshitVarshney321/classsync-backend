@@ -23,7 +23,13 @@ public class FacilityService {
 
     @Transactional(readOnly = true)
     public List<FacilityResponse> getActiveFacilities() {
-        return facilityRepository.findByActiveTrue().stream()
+        return getFacilities(false);
+    }
+
+    @Transactional(readOnly = true)
+    public List<FacilityResponse> getFacilities(boolean includeInactive) {
+        List<Facility> list = includeInactive ? facilityRepository.findAll() : facilityRepository.findByActiveTrue();
+        return list.stream()
                 .map(this::toResponse)
                 .toList();
     }

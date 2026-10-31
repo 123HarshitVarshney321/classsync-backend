@@ -343,4 +343,95 @@ class DomainIntegrationTests {
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.status").value(401));
     }
+
+    // =========================================================================
+    // Admin Inactive Visibility Tests (T4.5)
+    // =========================================================================
+
+    @Test
+    @DisplayName("18. Admin can view deactivated complex, room, and facility with includeInactive=true")
+    @WithMockUser(username = "admin@classsync.edu", roles = {"ADMIN"})
+    void adminCanViewInactiveEntitiesWithFlag() throws Exception {
+        // Deactivate Complex 2 (Main Academic Building)
+        mockMvc.perform(patch("/api/complexes/2/status")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("active", false))))
+                .andExpect(status().isOk());
+
+        // Deactivate Room 1 (SEC-101 in Complex 1)
+        mockMvc.perform(patch("/api/rooms/1/status")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("active", false))))
+                .andExpect(status().isOk());
+
+        // Deactivate Facility 1 (Projector)
+        mockMvc.perform(patch("/api/facilities/1/status")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("active", false))))
+                .andExpect(status().isOk());
+
+        // 1. GET /api/complexes: without flag does NOT include Complex 2; with flag DOES include Complex 2 (active=false)
+        mockMvc.perform(get("/api/complexes"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.id == 2)]").doesNotExist());
+
+        mockMvc.perform(get("/api/complexes").param("includeInactive", "true"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.id == 2)].active").value(false));
+
+        // 2. GET /api/complexes/1/rooms: without flag does NOT include Room 1; with flag DOES include Room 1 (active=false)
+        mockMvc.perform(get("/api/complexes/1/rooms"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.id == 1)]").doesNotExist());
+
+        mockMvc.perform(get("/api/complexes/1/rooms").param("includeInactive", "true"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.id == 1)].active").value(false));
+
+        // 3. GET /api/complexes/2/rooms (inactive complex): without flag 404; with flag returns rooms
+        mockMvc.perform(get("/api/complexes/2/rooms"))
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(get("/api/complexes/2/rooms").param("includeInactive", "true"))
+                .andExpect(status().isOk());
+
+        // 4. GET /api/rooms/1: without flag 404; with flag returns room (active=false)
+        mockMvc.perform(get("/api/rooms/1"))
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(get("/api/rooms/1").param("includeInactive", "true"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(1))
+                .andExpect(jsonPath("$.active").value(false));
+
+        // 5. GET /api/facilities: without flag does NOT include Facility 1; with flag DOES include Facility 1 (active=false)
+        mockMvc.perform(get("/api/facilities"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.id == 1)]").doesNotExist());
+
+        mockMvc.perform(get("/api/facilities").param("includeInactive", "true"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.id == 1)].active").value(false));
+    }
+
+    @Test
+    @DisplayName("19. Professor is forbidden from using includeInactive=true (403)")
+    @WithMockUser(username = "aturing@classsync.edu", roles = {"PROFESSOR"})
+    void professorCannotUseIncludeInactiveFlag() throws Exception {
+        mockMvc.perform(get("/api/complexes").param("includeInactive", "true"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.status").value(403));
+
+        mockMvc.perform(get("/api/complexes/1/rooms").param("includeInactive", "true"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.status").value(403));
+
+        mockMvc.perform(get("/api/rooms/1").param("includeInactive", "true"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.status").value(403));
+
+        mockMvc.perform(get("/api/facilities").param("includeInactive", "true"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.status").value(403));
+    }
 }

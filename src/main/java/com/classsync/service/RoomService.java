@@ -41,19 +41,44 @@ public class RoomService {
 
     @Transactional(readOnly = true)
     public List<RoomSummaryResponse> getActiveRoomsForComplex(Integer complexId) {
-        complexRepository.findByIdAndActiveTrue(complexId)
-                .orElseThrow(() -> new ResourceNotFoundException("Complex not found or inactive with id: " + complexId));
+        return getRoomsForComplex(complexId, false);
+    }
 
-        return roomRepository.findByComplexIdAndActiveTrue(complexId).stream()
-                .map(this::toSummaryResponse)
-                .toList();
+    @Transactional(readOnly = true)
+    public List<RoomSummaryResponse> getRoomsForComplex(Integer complexId, boolean includeInactive) {
+        if (includeInactive) {
+            complexRepository.findById(complexId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Complex not found with id: " + complexId));
+            return roomRepository.findByComplexId(complexId).stream()
+                    .map(this::toSummaryResponse)
+                    .toList();
+        } else {
+            complexRepository.findByIdAndActiveTrue(complexId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Complex not found or inactive with id: " + complexId));
+            return roomRepository.findByComplexIdAndActiveTrue(complexId).stream()
+                    .map(this::toSummaryResponse)
+                    .toList();
+        }
     }
 
     @Transactional(readOnly = true)
     public RoomDetailResponse getActiveRoomById(Integer id) {
-        Room room = roomRepository.findByIdWithDetailsAndActiveTrue(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Room not found or inactive with id: " + id));
+        return getRoomById(id, false);
+    }
 
+    @Transactional(readOnly = true)
+    public RoomDetailResponse getRoomById(Integer id, boolean includeInactive) {
+        Room room;
+        if (includeInactive) {
+            room = roomRepository.findByIdWithDetails(id)
+                    .orElseThrow(() -> new ResourceNotFoundException("Room not found with id: " + id));
+        } else {
+            room = roomRepository.findByIdWithDetailsAndActiveTrue(id)
+                    .orElseThrow(() -> new ResourceNotFoundException("Room not found or inactive with id: " + id));
+            if (!room.getComplex().getActive()) {
+                throw new ResourceNotFoundException("Room not found or inactive with id: " + id);
+            }
+        }
         return toDetailResponse(room);
     }
 

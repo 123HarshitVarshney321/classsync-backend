@@ -13,6 +13,9 @@ import jakarta.validation.Valid;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
@@ -49,8 +52,11 @@ public class RoomController {
     }
 
     @GetMapping("/complexes/{complexId}/rooms")
-    public ResponseEntity<List<RoomSummaryResponse>> getActiveRoomsForComplex(@PathVariable Integer complexId) {
-        return ResponseEntity.ok(roomService.getActiveRoomsForComplex(complexId));
+    public ResponseEntity<List<RoomSummaryResponse>> getRoomsForComplex(
+            @PathVariable Integer complexId,
+            @RequestParam(defaultValue = "false") boolean includeInactive) {
+        checkAdminIfIncludeInactive(includeInactive);
+        return ResponseEntity.ok(roomService.getRoomsForComplex(complexId, includeInactive));
     }
 
     @PostMapping("/complexes/{complexId}/rooms")
@@ -61,8 +67,11 @@ public class RoomController {
     }
 
     @GetMapping("/rooms/{id}")
-    public ResponseEntity<RoomDetailResponse> getActiveRoomById(@PathVariable Integer id) {
-        return ResponseEntity.ok(roomService.getActiveRoomById(id));
+    public ResponseEntity<RoomDetailResponse> getRoomById(
+            @PathVariable Integer id,
+            @RequestParam(defaultValue = "false") boolean includeInactive) {
+        checkAdminIfIncludeInactive(includeInactive);
+        return ResponseEntity.ok(roomService.getRoomById(id, includeInactive));
     }
 
     @PutMapping("/rooms/{id}")
@@ -75,5 +84,14 @@ public class RoomController {
     public ResponseEntity<RoomSummaryResponse> updateRoomStatus(@PathVariable Integer id,
                                                                 @Valid @RequestBody StatusUpdateRequest request) {
         return ResponseEntity.ok(roomService.updateRoomStatus(id, request));
+    }
+
+    private void checkAdminIfIncludeInactive(boolean includeInactive) {
+        if (includeInactive) {
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (auth == null || auth.getAuthorities().stream().noneMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()))) {
+                throw new AccessDeniedException("Admin role required to view inactive entities");
+            }
+        }
     }
 }
