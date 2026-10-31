@@ -45,7 +45,7 @@
 | T4.3 | DONE | `AuthController.java`, `SecurityConfig.java`, `SecurityAuthenticationTests` | `/me` endpoint returns LoginResponse, POST-only logout returns 204 |
 | T4.4 | DONE | `UserController.java`, `UserService.java`, `UserRepository.java`, `UserSummaryResponse.java` | Admin-only `GET /api/users` with role/status filters, no passwords |
 | T4.5 | DONE | `ComplexController.java`, `RoomController.java`, `FacilityController.java`, `DomainIntegrationTests` | Admin-only `includeInactive` parameter, 403 for professors |
-| T5 (docs) | NOT STARTED | `README.md`, `PROJECT_PROGRESS_REPORT.md` | Align docs with code |
+| T5 (docs) | DONE | `README.md`, `PROJECT_PROGRESS_REPORT.md` | Align docs with code; eliminate banned claims |
 | T6.1 | NOT STARTED | `mvn clean test` on fresh DB | Fresh DB verification |
 | T6.2 | NOT STARTED | `classsync_upgrade_check` | Upgrade path check |
 | T6.3 | NOT STARTED | curl commands on port 8081 | Runtime smoke test |
@@ -159,7 +159,7 @@ Failures (F1 Evidence):
 | A17 | `/me` and logout work (tests + curl) | PASS | `SecurityAuthenticationTests#authenticatedUserCanFetchProfileViaMe`, `logoutInvalidatesSessionAndReturns204`, `unauthenticatedRequestToMeReturns401` passed |
 | A18 | `/api/users` is admin-only and has no password fields | PASS | `SecurityAuthenticationTests#adminCanFilterUsersByRoleWithoutPasswordFields`, `professorCannotListUsers` passed |
 | A19 | `includeInactive` is admin-only and works | PASS | `DomainIntegrationTests#adminCanViewInactiveEntitiesWithFlag`, `professorCannotUseIncludeInactiveFlag` passed |
-| A20 | Docs grep for banned phrases returns nothing; test table matches surefire | NOT STARTED | |
+| A20 | Docs grep for banned phrases returns nothing; test table matches surefire | PASS | Verified `grep -n -i "mathematically impossible\|under 50ms\|millisecond-level\|production-grade\|AuthIntegrationTests"` returns 0 matches; test table matches 216 surefire results |
 | A21 | V1–V4 unchanged (`git diff --stat BASE_COMMIT -- src/main/resources/db/migration/V1__* V2__* V3__* V4__*` is empty) | PASS | V1–V4 untouched |
 | A22 | No @Disabled; only the listed contract-change tests were rewritten | PASS | No tests disabled |
 
