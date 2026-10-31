@@ -176,4 +176,30 @@ public interface ScheduleOccurrenceRepository extends JpaRepository<ScheduleOccu
             @Param("startTime") java.time.LocalTime startTime,
             @Param("endTime") java.time.LocalTime endTime
     );
+
+    @Query("""
+        SELECT o FROM ScheduleOccurrence o
+        WHERE o.status = com.classsync.entity.ScheduleStatus.SCHEDULED
+          AND o.scheduleDate BETWEEN :startDate AND :endDate
+          AND (o.room.id IN :roomIds OR o.professor.id IN :professorIds)
+    """)
+    List<ScheduleOccurrence> findScheduledInWindowForRoomsOrProfessors(
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate,
+            @Param("roomIds") Collection<Integer> roomIds,
+            @Param("professorIds") Collection<Integer> professorIds
+    );
+
+    @org.springframework.data.jpa.repository.Modifying(flushAutomatically = true)
+    @Query("""
+        UPDATE ScheduleOccurrence o
+        SET o.status = com.classsync.entity.ScheduleStatus.SUPERSEDED
+        WHERE o.status = com.classsync.entity.ScheduleStatus.SCHEDULED
+          AND o.scheduleDate >= :effectiveFrom
+          AND o.timetableEntry.id IN (SELECT e.id FROM TimetableEntry e WHERE e.timetableVersion.id = :versionId)
+    """)
+    int supersedeFutureOccurrencesOfVersion(
+            @Param("versionId") Integer versionId,
+            @Param("effectiveFrom") LocalDate effectiveFrom
+    );
 }

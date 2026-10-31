@@ -16,5 +16,6 @@ public record BookingResponse(
         String courseCode,
         String courseName,
         BookingProfessorSummary professor,
-        BookingRoomSummary room
+        BookingRoomSummary room,
+        Integer rescheduledFromId
 ) {}

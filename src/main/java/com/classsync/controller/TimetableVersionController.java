@@ -1,14 +1,17 @@
 package com.classsync.controller;
 
 import com.classsync.dto.timetable.CreateTimetableVersionRequest;
+import com.classsync.dto.timetable.TimetableActivationResponse;
 import com.classsync.dto.timetable.TimetableVersionResponse;
 import com.classsync.service.TimetableVersionService;
 import jakarta.validation.Valid;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
+import java.time.LocalDate;
 import java.util.List;
 
 @RestController
@@ -42,8 +45,10 @@ public class TimetableVersionController {
     }
 
     @PatchMapping("/{id}/activate")
-    public ResponseEntity<TimetableVersionResponse> activateVersion(@PathVariable Integer id) {
-        return ResponseEntity.ok(timetableVersionService.activateVersion(id));
+    public ResponseEntity<TimetableActivationResponse> activateVersion(
+            @PathVariable Integer id,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate effectiveFrom) {
+        return ResponseEntity.ok(timetableVersionService.activateVersion(id, effectiveFrom));
     }
 
     @PatchMapping("/{id}/archive")

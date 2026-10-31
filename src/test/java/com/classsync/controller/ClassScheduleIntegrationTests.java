@@ -15,9 +15,11 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -260,7 +262,8 @@ class ClassScheduleIntegrationTests {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id", is(occ.getId())))
+                .andExpect(jsonPath("$.id").isNumber())
+                .andExpect(jsonPath("$.rescheduledFromId", is(occ.getId())))
                 .andExpect(jsonPath("$.startTime", is("14:00:00")))
                 .andExpect(jsonPath("$.endTime", is("15:00:00")))
                 .andExpect(jsonPath("$.room.id", is(2)));
@@ -285,7 +288,8 @@ class ClassScheduleIntegrationTests {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id", is(occ.getId())))
+                .andExpect(jsonPath("$.id").isNumber())
+                .andExpect(jsonPath("$.rescheduledFromId", is(occ.getId())))
                 .andExpect(jsonPath("$.room.id", is(2)));
     }
 
@@ -608,20 +612,35 @@ class ClassScheduleIntegrationTests {
     }
 
     @Test
-    @DisplayName("24. Rescheduling preserves occurrence ID")
+    @DisplayName("24. Rescheduling creates a linked replacement and keeps the original row")
     @WithMockUser(username = "aturing@classsync.edu", roles = {"PROFESSOR"})
     void reschedulingPreservesOccurrenceId() throws Exception {
         Room room1 = roomRepository.findById(1).orElseThrow();
         User turing = userRepository.findByEmail("aturing@classsync.edu").orElseThrow();
-        ScheduleOccurrence occ = createOccurrence(room1, turing, LocalDate.of(2026, 12, 11), LocalTime.of(10, 0), LocalTime.of(11, 0), ScheduleStatus.SCHEDULED);
+        LocalDate testDate = LocalDate.of(2026, 12, 11);
+        LocalTime origStart = LocalTime.of(10, 0);
+        LocalTime origEnd = LocalTime.of(11, 0);
+        ScheduleOccurrence occ = createOccurrence(room1, turing, testDate, origStart, origEnd, ScheduleStatus.SCHEDULED);
 
-        RescheduleRequest request = new RescheduleRequest(LocalDate.of(2026, 12, 11), LocalTime.of(12, 0), LocalTime.of(13, 0), 2);
+        RescheduleRequest request = new RescheduleRequest(testDate, LocalTime.of(12, 0), LocalTime.of(13, 0), 2);
 
-        mockMvc.perform(post("/api/classes/" + occ.getId() + "/reschedule")
+        MvcResult result = mockMvc.perform(post("/api/classes/" + occ.getId() + "/reschedule")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id", is(occ.getId())));
+                .andExpect(jsonPath("$.id").isNotEmpty())
+                .andExpect(jsonPath("$.rescheduledFromId", is(occ.getId())))
+                .andReturn();
+
+        Integer replacementId = objectMapper.readTree(result.getResponse().getContentAsString()).get("id").asInt();
+        assertNotEquals(occ.getId(), replacementId);
+
+        ScheduleOccurrence originalInDb = scheduleOccurrenceRepository.findById(occ.getId()).orElseThrow();
+        assertEquals(ScheduleStatus.RESCHEDULED, originalInDb.getStatus());
+        assertEquals(room1.getId(), originalInDb.getRoom().getId());
+        assertEquals(testDate, originalInDb.getScheduleDate());
+        assertEquals(origStart, originalInDb.getStartTime());
+        assertEquals(origEnd, originalInDb.getEndTime());
     }
 
     @Test
@@ -661,7 +680,7 @@ class ClassScheduleIntegrationTests {
     }
 
     @Test
-    @DisplayName("27. Rescheduling preserves timetableEntry relationship")
+    @DisplayName("27. Original keeps its timetable entry; replacement has none")
     @WithMockUser(username = "admin@classsync.edu", roles = {"ADMIN"})
     void reschedulingPreservesTimetableEntryRelationship() throws Exception {
         Room room1 = roomRepository.findById(1).orElseThrow();
@@ -674,20 +693,33 @@ class ClassScheduleIntegrationTests {
         ));
 
         ScheduleOccurrence officialOcc = null;
+        ScheduleOccurrence replacement = null;
         try {
             officialOcc = createOfficialOccurrence(entry, room1, turing, LocalDate.of(2026, 12, 12), LocalTime.of(9, 0), LocalTime.of(10, 0), ScheduleStatus.SCHEDULED);
 
             RescheduleRequest request = new RescheduleRequest(LocalDate.of(2026, 12, 12), LocalTime.of(14, 0), LocalTime.of(15, 0), 2);
 
-            mockMvc.perform(post("/api/classes/" + officialOcc.getId() + "/reschedule")
+            MvcResult result = mockMvc.perform(post("/api/classes/" + officialOcc.getId() + "/reschedule")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
-                    .andExpect(status().isOk());
+                    .andExpect(status().isOk())
+                    .andReturn();
 
-            ScheduleOccurrence updated = scheduleOccurrenceRepository.findById(officialOcc.getId()).orElseThrow();
-            assertNotNull(updated.getTimetableEntry());
-            assertEquals(entry.getId(), updated.getTimetableEntry().getId());
+            Integer replacementId = objectMapper.readTree(result.getResponse().getContentAsString()).get("id").asInt();
+
+            ScheduleOccurrence origInDb = scheduleOccurrenceRepository.findById(officialOcc.getId()).orElseThrow();
+            assertEquals(ScheduleStatus.RESCHEDULED, origInDb.getStatus());
+            assertNotNull(origInDb.getTimetableEntry());
+            assertEquals(entry.getId(), origInDb.getTimetableEntry().getId());
+
+            replacement = scheduleOccurrenceRepository.findById(replacementId).orElseThrow();
+            assertNull(replacement.getTimetableEntry());
+            assertNotNull(replacement.getRescheduledFrom());
+            assertEquals(officialOcc.getId(), replacement.getRescheduledFrom().getId());
         } finally {
+            if (replacement != null) {
+                scheduleOccurrenceRepository.delete(replacement);
+            }
             if (officialOcc != null) {
                 scheduleOccurrenceRepository.delete(officialOcc);
             }
@@ -720,23 +752,38 @@ class ClassScheduleIntegrationTests {
     void reschedulingUpdatesDateTimeRoomCorrectly() throws Exception {
         Room room1 = roomRepository.findById(1).orElseThrow();
         User turing = userRepository.findByEmail("aturing@classsync.edu").orElseThrow();
-        ScheduleOccurrence occ = createOccurrence(room1, turing, LocalDate.of(2026, 12, 14), LocalTime.of(10, 0), LocalTime.of(11, 0), ScheduleStatus.SCHEDULED);
+        LocalDate oldDate = LocalDate.of(2026, 12, 14);
+        LocalTime oldStart = LocalTime.of(10, 0);
+        LocalTime oldEnd = LocalTime.of(11, 0);
+        ScheduleOccurrence occ = createOccurrence(room1, turing, oldDate, oldStart, oldEnd, ScheduleStatus.SCHEDULED);
 
         LocalDate newDate = LocalDate.of(2026, 12, 15);
         LocalTime newStart = LocalTime.of(15, 0);
         LocalTime newEnd = LocalTime.of(16, 0);
         RescheduleRequest request = new RescheduleRequest(newDate, newStart, newEnd, 2);
 
-        mockMvc.perform(post("/api/classes/" + occ.getId() + "/reschedule")
+        MvcResult result = mockMvc.perform(post("/api/classes/" + occ.getId() + "/reschedule")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andReturn();
 
-        ScheduleOccurrence updated = scheduleOccurrenceRepository.findById(occ.getId()).orElseThrow();
-        assertEquals(newDate, updated.getScheduleDate());
-        assertEquals(newStart, updated.getStartTime());
-        assertEquals(newEnd, updated.getEndTime());
-        assertEquals(2, updated.getRoom().getId());
+        Integer replacementId = objectMapper.readTree(result.getResponse().getContentAsString()).get("id").asInt();
+
+        ScheduleOccurrence original = scheduleOccurrenceRepository.findById(occ.getId()).orElseThrow();
+        assertEquals(oldDate, original.getScheduleDate());
+        assertEquals(oldStart, original.getStartTime());
+        assertEquals(oldEnd, original.getEndTime());
+        assertEquals(1, original.getRoom().getId());
+        assertEquals(ScheduleStatus.RESCHEDULED, original.getStatus());
+
+        ScheduleOccurrence replacement = scheduleOccurrenceRepository.findById(replacementId).orElseThrow();
+        assertEquals(newDate, replacement.getScheduleDate());
+        assertEquals(newStart, replacement.getStartTime());
+        assertEquals(newEnd, replacement.getEndTime());
+        assertEquals(2, replacement.getRoom().getId());
+        assertEquals(ScheduleStatus.SCHEDULED, replacement.getStatus());
+        assertEquals(occ.getId(), replacement.getRescheduledFrom().getId());
     }
 
     // =========================================================================
@@ -758,6 +805,7 @@ class ClassScheduleIntegrationTests {
         CountDownLatch latch = new CountDownLatch(threads);
 
         AtomicInteger successes = new AtomicInteger(0);
+        AtomicInteger failures = new AtomicInteger(0);
 
         RescheduleRequest reqA = new RescheduleRequest(testDate, LocalTime.of(14, 0), LocalTime.of(15, 0), 1);
         RescheduleRequest reqB = new RescheduleRequest(testDate, LocalTime.of(16, 0), LocalTime.of(17, 0), 2);
@@ -768,7 +816,7 @@ class ClassScheduleIntegrationTests {
                 classScheduleService.rescheduleOccurrence(occ.getId(), reqA, "aturing@classsync.edu");
                 successes.incrementAndGet();
             } catch (Exception e) {
-                // Could be duplicate/conflict depending on ordering
+                failures.incrementAndGet();
             } finally {
                 latch.countDown();
             }
@@ -780,7 +828,7 @@ class ClassScheduleIntegrationTests {
                 classScheduleService.rescheduleOccurrence(occ.getId(), reqB, "aturing@classsync.edu");
                 successes.incrementAndGet();
             } catch (Exception e) {
-                // Could be duplicate/conflict depending on ordering
+                failures.incrementAndGet();
             } finally {
                 latch.countDown();
             }
@@ -790,13 +838,17 @@ class ClassScheduleIntegrationTests {
         executor.shutdown();
 
         assertTrue(completed, "Concurrency test timed out");
-        // Both requests are non-conflicting time slots (14:00-15:00 vs 16:00-17:00),
-        // so serialized execution through the occurrence lock allows both to succeed sequentially
-        assertEquals(2, successes.get());
+        assertEquals(1, successes.get(), "Exactly one reschedule should succeed");
+        assertEquals(1, failures.get(), "The other reschedule must fail");
 
-        // The final state must be the last committed update (valid, non-corrupted state)
-        ScheduleOccurrence finalOcc = scheduleOccurrenceRepository.findById(occ.getId()).orElseThrow();
-        assertTrue(finalOcc.getStartTime().equals(LocalTime.of(14, 0)) || finalOcc.getStartTime().equals(LocalTime.of(16, 0)));
+        ScheduleOccurrence original = scheduleOccurrenceRepository.findById(occ.getId()).orElseThrow();
+        assertEquals(ScheduleStatus.RESCHEDULED, original.getStatus());
+
+        List<ScheduleOccurrence> replacements = scheduleOccurrenceRepository.findAll().stream()
+                .filter(o -> o.getRescheduledFrom() != null && o.getRescheduledFrom().getId().equals(occ.getId()))
+                .toList();
+        assertEquals(1, replacements.size());
+        assertEquals(occ.getId(), replacements.get(0).getRescheduledFrom().getId());
     }
 
     @Test
@@ -913,5 +965,125 @@ class ClassScheduleIntegrationTests {
 
         assertTrue(completed, "Concurrency test timed out");
         assertEquals(2, successes.get(), "Expected both disjoint reschedules to succeed concurrently");
+    }
+
+    // =========================================================================
+    // Prompt 11H Tests (N1–N5)
+    // =========================================================================
+
+    @Test
+    @DisplayName("N1. Cancelling a RESCHEDULED original returns 409 Conflict")
+    @WithMockUser(username = "aturing@classsync.edu", roles = {"PROFESSOR"})
+    void cancellingRescheduledOriginalReturns409() throws Exception {
+        Room room1 = roomRepository.findById(1).orElseThrow();
+        User turing = userRepository.findByEmail("aturing@classsync.edu").orElseThrow();
+        LocalDate testDate = LocalDate.of(2026, 12, 16);
+        ScheduleOccurrence occ = createOccurrence(room1, turing, testDate, LocalTime.of(10, 0), LocalTime.of(11, 0), ScheduleStatus.SCHEDULED);
+
+        RescheduleRequest req = new RescheduleRequest(testDate, LocalTime.of(12, 0), LocalTime.of(13, 0), 2);
+        mockMvc.perform(post("/api/classes/" + occ.getId() + "/reschedule")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/classes/" + occ.getId() + "/cancel"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message", is("Only SCHEDULED occurrences can be cancelled (current status: RESCHEDULED)")));
+    }
+
+    @Test
+    @DisplayName("N2. Rescheduling a RESCHEDULED original returns 409 Conflict")
+    @WithMockUser(username = "aturing@classsync.edu", roles = {"PROFESSOR"})
+    void reschedulingRescheduledOriginalReturns409() throws Exception {
+        Room room1 = roomRepository.findById(1).orElseThrow();
+        User turing = userRepository.findByEmail("aturing@classsync.edu").orElseThrow();
+        LocalDate testDate = LocalDate.of(2026, 12, 17);
+        ScheduleOccurrence occ = createOccurrence(room1, turing, testDate, LocalTime.of(10, 0), LocalTime.of(11, 0), ScheduleStatus.SCHEDULED);
+
+        RescheduleRequest req1 = new RescheduleRequest(testDate, LocalTime.of(12, 0), LocalTime.of(13, 0), 2);
+        mockMvc.perform(post("/api/classes/" + occ.getId() + "/reschedule")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req1)))
+                .andExpect(status().isOk());
+
+        RescheduleRequest req2 = new RescheduleRequest(testDate, LocalTime.of(14, 0), LocalTime.of(15, 0), 3);
+        mockMvc.perform(post("/api/classes/" + occ.getId() + "/reschedule")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req2)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message", is("Only SCHEDULED occurrences can be rescheduled (current status: RESCHEDULED)")));
+    }
+
+    @Test
+    @DisplayName("N3. Rescheduling the replacement creates a second replacement linked to the first")
+    @WithMockUser(username = "aturing@classsync.edu", roles = {"PROFESSOR"})
+    void reschedulingReplacementCreatesSecondReplacement() throws Exception {
+        Room room1 = roomRepository.findById(1).orElseThrow();
+        User turing = userRepository.findByEmail("aturing@classsync.edu").orElseThrow();
+        LocalDate testDate = LocalDate.of(2026, 12, 18);
+        ScheduleOccurrence occ = createOccurrence(room1, turing, testDate, LocalTime.of(10, 0), LocalTime.of(11, 0), ScheduleStatus.SCHEDULED);
+
+        // First reschedule
+        RescheduleRequest req1 = new RescheduleRequest(testDate, LocalTime.of(12, 0), LocalTime.of(13, 0), 2);
+        MvcResult res1 = mockMvc.perform(post("/api/classes/" + occ.getId() + "/reschedule")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req1)))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        Integer repl1Id = objectMapper.readTree(res1.getResponse().getContentAsString()).get("id").asInt();
+
+        // Second reschedule (on the replacement)
+        RescheduleRequest req2 = new RescheduleRequest(testDate, LocalTime.of(14, 0), LocalTime.of(15, 0), 3);
+        MvcResult res2 = mockMvc.perform(post("/api/classes/" + repl1Id + "/reschedule")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req2)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.rescheduledFromId", is(repl1Id)))
+                .andReturn();
+
+        Integer repl2Id = objectMapper.readTree(res2.getResponse().getContentAsString()).get("id").asInt();
+
+        ScheduleOccurrence repl1InDb = scheduleOccurrenceRepository.findById(repl1Id).orElseThrow();
+        assertEquals(ScheduleStatus.RESCHEDULED, repl1InDb.getStatus());
+
+        ScheduleOccurrence repl2InDb = scheduleOccurrenceRepository.findById(repl2Id).orElseThrow();
+        assertEquals(ScheduleStatus.SCHEDULED, repl2InDb.getStatus());
+        assertEquals(repl1Id, repl2InDb.getRescheduledFrom().getId());
+    }
+
+    @Test
+    @DisplayName("N4. Identical target slot returns 400 Bad Request")
+    @WithMockUser(username = "aturing@classsync.edu", roles = {"PROFESSOR"})
+    void identicalTargetSlotReturns400() throws Exception {
+        Room room1 = roomRepository.findById(1).orElseThrow();
+        User turing = userRepository.findByEmail("aturing@classsync.edu").orElseThrow();
+        LocalDate testDate = LocalDate.of(2026, 12, 19);
+        ScheduleOccurrence occ = createOccurrence(room1, turing, testDate, LocalTime.of(10, 0), LocalTime.of(11, 0), ScheduleStatus.SCHEDULED);
+
+        RescheduleRequest identicalReq = new RescheduleRequest(testDate, LocalTime.of(10, 0), LocalTime.of(11, 0), 1);
+        mockMvc.perform(post("/api/classes/" + occ.getId() + "/reschedule")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(identicalReq)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message", is("Reschedule target is identical to the current slot")));
+    }
+
+    @Test
+    @DisplayName("N5. Target before the fixed clock returns 400 Bad Request")
+    @WithMockUser(username = "aturing@classsync.edu", roles = {"PROFESSOR"})
+    void targetBeforeFixedClockReturns400() throws Exception {
+        Room room1 = roomRepository.findById(1).orElseThrow();
+        User turing = userRepository.findByEmail("aturing@classsync.edu").orElseThrow();
+        LocalDate testDate = LocalDate.of(2026, 12, 19);
+        ScheduleOccurrence occ = createOccurrence(room1, turing, testDate, LocalTime.of(10, 0), LocalTime.of(11, 0), ScheduleStatus.SCHEDULED);
+
+        // Fixed clock is 2026-10-01, target is 2026-09-30
+        RescheduleRequest pastReq = new RescheduleRequest(LocalDate.of(2026, 9, 30), LocalTime.of(10, 0), LocalTime.of(11, 0), 2);
+        mockMvc.perform(post("/api/classes/" + occ.getId() + "/reschedule")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(pastReq)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message", is("Cannot reschedule a class into the past")));
     }
 }

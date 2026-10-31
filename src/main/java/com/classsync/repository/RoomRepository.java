@@ -50,4 +50,8 @@ public interface RoomRepository extends JpaRepository<Room, Integer> {
     @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT r FROM Room r WHERE r.id = :id")
     Optional<Room> findByIdWithLock(@Param("id") Integer id);
+
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT r FROM Room r WHERE r.id IN :ids ORDER BY r.id ASC")
+    List<Room> lockAllByIdInOrder(@Param("ids") java.util.Collection<Integer> ids);
 }

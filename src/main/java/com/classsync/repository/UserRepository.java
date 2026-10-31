@@ -14,4 +14,8 @@ public interface UserRepository extends JpaRepository<User, Integer> {
     @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
     @org.springframework.data.jpa.repository.Query("SELECT u FROM User u WHERE u.id = :id")
     Optional<User> findByIdWithLock(@org.springframework.data.repository.query.Param("id") Integer id);
+
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @org.springframework.data.jpa.repository.Query("SELECT u FROM User u WHERE u.id IN :ids ORDER BY u.id ASC")
+    java.util.List<User> lockAllByIdInOrder(@org.springframework.data.repository.query.Param("ids") java.util.Collection<Integer> ids);
 }

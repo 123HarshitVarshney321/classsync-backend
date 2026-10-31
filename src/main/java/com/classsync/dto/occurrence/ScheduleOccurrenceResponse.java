@@ -22,5 +22,6 @@ public record ScheduleOccurrenceResponse(
         String courseName,
         Integer createdById,
         String createdByName,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        Integer rescheduledFromId
 ) {}

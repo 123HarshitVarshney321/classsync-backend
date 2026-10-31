@@ -13,6 +13,7 @@
 
 ## B. Commits
 - `5a03337` `test(11H-P0): isolate tests in classsync_test + baseline`
+- `a370ff2` `fix(11H-P1): seed hashes, clock, lock-failure mapping, method security`
 
 ## C. Files changed
 (Updated per phase commit)
@@ -28,13 +29,13 @@
 | T1.2 | DONE | `TimeConfig.java`, `application.yml` | Clock bean with app.timezone and fixed-date support |
 | T1.3 | DONE | `GlobalExceptionHandler.java`, `GlobalExceptionHandlerTest#pessimisticLockingFailureMapsTo409` | Maps PessimisticLockingFailureException to 409 Conflict |
 | T1.4 | DONE | `SecurityConfig.java` | Added @EnableMethodSecurity |
-| T2.1 | NOT STARTED | `V6__non_destructive_reschedule_and_supersession.sql` | V6 migration |
-| T2.2 | NOT STARTED | `ScheduleStatus.java`, `ScheduleOccurrence.java`, DTOs | Model and DTO updates |
-| T2.3 | NOT STARTED | `ClassScheduleService.java` | Non-destructive rescheduling contract |
-| T2.4 | NOT STARTED | `BookingService.java` | Past-date guard for bookings |
-| T2.5 | NOT STARTED | `ScheduleOccurrenceService.java`, `GenerateOccurrencesResponse.java` | Generator locks, conflict detection, report |
-| T2.6 | NOT STARTED | `TimetableVersionService.java`, `TimetableActivationResponse.java` | Version activation locking & supersession |
-| T2.7 | NOT STARTED | Integration tests N1-N18 | Phase 2 tests |
+| T2.1 | DONE | `V6__non_destructive_reschedule_and_supersession.sql` | V6 migration: RESCHEDULED, SUPERSEDED statuses and rescheduled_from_id FK |
+| T2.2 | DONE | `ScheduleStatus.java`, `ScheduleOccurrence.java`, `ScheduleOccurrenceResponse.java`, `BookingResponse.java` | Model and DTOs updated with rescheduledFrom / rescheduledFromId |
+| T2.3 | DONE | `ClassScheduleService.java` | Non-destructive reschedule: original RESCHEDULED, replacement linked, lock order O->U->R |
+| T2.4 | DONE | `BookingService.java` | Past-date guard for bookings via Clock |
+| T2.5 | DONE | `ScheduleOccurrenceService.java`, `GenerateOccurrencesResponse.java`, `GenerationConflict.java` | Generator locks V->U->R, single-query conflict detection, conflict report |
+| T2.6 | DONE | `TimetableVersionService.java`, `TimetableActivationResponse.java` | Version activation locking, superseding future official rows, effectiveFrom |
+| T2.7 | DONE | `ClassScheduleIntegrationTests`, `BookingIntegrationTests`, `ScheduleOccurrenceIntegrationTests`, `TimetableIntegrationTests`, `GenerationConcurrencyIntegrationTests` | All 201 tests passing including N1-N18 |
 | T3.1 | NOT STARTED | `RecommendationService.java` | Hard vs soft constraints |
 | T3.2 | NOT STARTED | `RecommendationService.java` | Scoring and reasons |
 | T3.3 | NOT STARTED | `RecommendationIntegrationTests.java` | Tests N19-N22 |
@@ -50,7 +51,7 @@
 | T6.4 | NOT STARTED | `git push -u origin hardening/prompt-11h` | Push and final report |
 
 ## E. Deviations
-None.
+- Tests 10 and 11 in `ClassScheduleIntegrationTests` originally asserted `jsonPath("$.id", is(occ.getId()))`. Under the non-destructive rescheduling contract (F5), rescheduling creates and returns a linked replacement row (with its own generated ID) while keeping the original row intact with status `RESCHEDULED`. These two assertions were updated to `jsonPath("$.id").isNumber()` and `jsonPath("$.rescheduledFromId", is(occ.getId()))`, matching the exact semantics of non-destructive rescheduling.
 
 ## F. Tests
 - F1. Baseline (Phase 0, fresh DB, before fixes):
@@ -77,11 +78,36 @@ Failures (F1 Evidence):
 - F3. Changed existing tests:
   | Class | Old name | New name | Old expectation | New expectation | Contract change |
   |---|---|---|---|---|---|
+  | `ClassScheduleIntegrationTests` | 24. Rescheduling preserves occurrence ID | 24. Rescheduling creates a linked replacement and keeps the original row | Returned id == original id | Returned id != original id, rescheduledFromId == original id, original is RESCHEDULED | F5 non-destructive rescheduling |
+  | `ClassScheduleIntegrationTests` | 27. Rescheduling preserves timetableEntry relationship | 27. Original keeps its timetable entry; replacement has none | Modified occurrence preserves entry | Original keeps entry with RESCHEDULED; replacement has null entry and rescheduledFrom = original | F5 non-destructive rescheduling |
+  | `ClassScheduleIntegrationTests` | 29. Rescheduling updates date/time/room correctly | 29. Rescheduling updates date/time/room correctly | Original row modified to new slot | Replacement row has new slot; original row keeps old slot and status RESCHEDULED | F5 non-destructive rescheduling |
+  | `ClassScheduleIntegrationTests` | 30. Concurrent rescheduling of the same occurrence does not cause lost updates | 30. Concurrent rescheduling of the same occurrence does not cause lost updates | Both succeed sequentially mutating same row | Exactly 1 success (new replacement created) and 1 conflict (DuplicateResourceException); original is RESCHEDULED | F5 non-destructive rescheduling |
+  | `ClassScheduleIntegrationTests` | 10. Professor reschedules own occurrence -> 200 | 10. Professor reschedules own occurrence -> 200 | Returned id == original id | Returned id isNumber(), rescheduledFromId == original id | F5 non-destructive rescheduling |
+  | `ClassScheduleIntegrationTests` | 11. Admin reschedules another professor's occurrence -> 200 | 11. Admin reschedules another professor's occurrence -> 200 | Returned id == original id | Returned id isNumber(), rescheduledFromId == original id | F5 non-destructive rescheduling |
+
 - F4. New tests:
   | ID (N1…N22, T4.x, T1.x) | Class | Method name | What it proves (finding) |
   |---|---|---|---|
   | T1.1 | `SecurityAuthenticationTests` | `seedUserPasswordHashesMatchDefaultPassword` | Seed user hashes in V5 match 'password123' (F1) |
   | T1.3 | `GlobalExceptionHandlerTest` | `pessimisticLockingFailureMapsTo409` | PessimisticLockingFailureException maps to 409 Conflict (F7) |
+  | N1 | `ClassScheduleIntegrationTests` | `cancellingRescheduledOriginalReturns409` | Cancelling a RESCHEDULED original -> 409 (F5) |
+  | N2 | `ClassScheduleIntegrationTests` | `reschedulingRescheduledOriginalReturns409` | Rescheduling a RESCHEDULED original -> 409 (F5) |
+  | N3 | `ClassScheduleIntegrationTests` | `reschedulingReplacementCreatesSecondReplacement` | Multi-hop reschedule links replacements and updates status (F5) |
+  | N4 | `ClassScheduleIntegrationTests` | `identicalTargetSlotReturns400` | Identical target slot returns 400 Bad Request (F5) |
+  | N5 | `ClassScheduleIntegrationTests` | `targetBeforeFixedClockReturns400` | Reschedule target before fixed clock -> 400 (F8) |
+  | N6 | `BookingIntegrationTests` | `bookingBeforeFixedClockReturns400` | Booking date before fixed clock -> 400 (F8) |
+  | N7 | `ScheduleOccurrenceIntegrationTests` | `ghostClassRegressionRescheduleAndRegenerate` | Rescheduling vacates slot; regeneration never recreates moved class (F5) |
+  | N8 | `ScheduleOccurrenceIntegrationTests` | `rescheduleBeforeNextWeekGenerationSucceeds` | Rescheduling across week boundary before next week generation produces no error (F5) |
+  | N9 | `ScheduleOccurrenceIntegrationTests` | `rescheduleToAlreadyGeneratedDateSucceeds` | Rescheduling to already generated date succeeds with 200 (no UK violation) (F5) |
+  | N10 | `ScheduleOccurrenceIntegrationTests` | `extraBookingTriggersRoomBusyConflictOnGeneration` | Extra booking causes generator to skip and report ROOM_BUSY conflict (F3) |
+  | N11 | `ScheduleOccurrenceIntegrationTests` | `professorBusyTriggersProfessorBusyConflict` | Professor booked elsewhere causes generator to report PROFESSOR_BUSY conflict (F3) |
+  | N12 | `ScheduleOccurrenceIntegrationTests` | `cancellingExtraAllowsGapFilling` | Cancelling conflicting EXTRA allows idempotent gap-filling on regeneration (F3) |
+  | N13 | `ScheduleOccurrenceIntegrationTests` | `inactiveRoomReportsRoomInactiveConflict` | Inactive room reports ROOM_INACTIVE conflict, occurrence not created (F3) |
+  | N14 | `TimetableIntegrationTests` | `activationBulkSupersedesFutureOccurrences` | Activation bulk-supersedes future official rows while keeping past and EXTRA rows intact (F4) |
+  | N15 | `TimetableIntegrationTests` | `generatingNewVersionAfterSupersessionHasNoConflicts` | Generating new version after supersession has no conflicts (F4) |
+  | N16 | `TimetableIntegrationTests` | `activationWithPastEffectiveFromReturns400` | Activation with effectiveFrom before today returns 400 (F4) |
+  | N17 | `TimetableIntegrationTests` | `activationWithoutEffectiveFromDefaultsToFixedClock` | Activation without effectiveFrom defaults to today (fixed clock) (F4) |
+  | N18 | `GenerationConcurrencyIntegrationTests` | `concurrentGenerationAndBookingNeverProduceOverlappingScheduledRows` | Concurrent generation and booking serialize with no overlapping SCHEDULED rows (F3/F7) |
 
 - F5. `grep -rn "@Disabled" src/test` output, and the @Test count at BASE_COMMIT vs HEAD:
   `git grep -hE "^\s*@Test\s*$" BASE_COMMIT -- src/test | wc -l`  vs  `grep -rhE "^\s*@Test\s*$" src/test | wc -l`
@@ -97,13 +123,13 @@ Failures (F1 Evidence):
 |---|---|---|---|
 | A1 | Fresh DB: seed users log in with password123 | PASS | `SecurityAuthenticationTests#validAdminLoginSucceeds`, `validProfessorLoginSucceeds`, `seedUserPasswordHashesMatchDefaultPassword` all pass |
 | A2 | Tests never touch the dev DB (isolation test passes) | PASS | `TestDatabaseIsolationTest` passed (catalog equals `classsync_test`) |
-| A3 | Generator never creates an occurrence overlapping a SCHEDULED one (room or professor) | NOT STARTED | |
-| A4 | Generation conflicts are reported with type and conflicting occurrence id | NOT STARTED | |
-| A5 | Reschedule never moves the original; original is RESCHEDULED; replacement is linked | NOT STARTED | |
-| A6 | Regeneration after reschedule: no ghost class, no unique-constraint error | NOT STARTED | |
-| A7 | Activation supersedes only the old version's SCHEDULED official rows on/after effectiveFrom; the new version then generates cleanly | NOT STARTED | |
-| A8 | Cancel/reschedule of a non-SCHEDULED occurrence → 409 | NOT STARTED | |
-| A9 | Past-date booking/reschedule → 400 | NOT STARTED | |
+| A3 | Generator never creates an occurrence overlapping a SCHEDULED one (room or professor) | PASS | `ScheduleOccurrenceIntegrationTests#extraBookingTriggersRoomBusyConflictOnGeneration`, `professorBusyTriggersProfessorBusyConflict`, `GenerationConcurrencyIntegrationTests` pass |
+| A4 | Generation conflicts are reported with type and conflicting occurrence id | PASS | `ScheduleOccurrenceIntegrationTests#extraBookingTriggersRoomBusyConflictOnGeneration` asserts type ROOM_BUSY and conflicting occurrence id |
+| A5 | Reschedule never moves the original; original is RESCHEDULED; replacement is linked | PASS | `ClassScheduleIntegrationTests#reschedulingCreatesLinkedReplacementAndKeepsOriginalRow`, `reschedulingReplacementCreatesSecondReplacement` pass |
+| A6 | Regeneration after reschedule: no ghost class, no unique-constraint error | PASS | `ScheduleOccurrenceIntegrationTests#ghostClassRegressionRescheduleAndRegenerate`, `rescheduleToAlreadyGeneratedDateSucceeds` pass |
+| A7 | Activation supersedes only the old version's SCHEDULED official rows on/after effectiveFrom; the new version then generates cleanly | PASS | `TimetableIntegrationTests#activationBulkSupersedesFutureOccurrences`, `generatingNewVersionAfterSupersessionHasNoConflicts` pass |
+| A8 | Cancel/reschedule of a non-SCHEDULED occurrence → 409 | PASS | `ClassScheduleIntegrationTests#cancellingRescheduledOriginalReturns409`, `reschedulingRescheduledOriginalReturns409` pass |
+| A9 | Past-date booking/reschedule → 400 | PASS | `BookingIntegrationTests#bookingBeforeFixedClockReturns400`, `ClassScheduleIntegrationTests#targetBeforeFixedClockReturns400`, `TimetableIntegrationTests#activationWithPastEffectiveFromReturns400` pass |
 | A10 | Recommendations: complex/type/facilities are soft; other complexes rank lower; partial/none facility reasons | NOT STARTED | |
 | A11 | Recommendation score of 100.0 is reachable; following-class reason works | NOT STARTED | |
 | A12 | `/api/rooms/available` unchanged (19/19 Availability tests unchanged and passing) | PASS | 19/19 AvailabilityIntegrationTests passed |

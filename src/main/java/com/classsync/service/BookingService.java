@@ -22,19 +22,26 @@ public class BookingService {
     private final UserRepository userRepository;
     private final RoomRepository roomRepository;
     private final ScheduleOccurrenceRepository scheduleOccurrenceRepository;
+    private final java.time.Clock clock;
 
     public BookingService(UserRepository userRepository,
                           RoomRepository roomRepository,
-                          ScheduleOccurrenceRepository scheduleOccurrenceRepository) {
+                          ScheduleOccurrenceRepository scheduleOccurrenceRepository,
+                          java.time.Clock clock) {
         this.userRepository = userRepository;
         this.roomRepository = roomRepository;
         this.scheduleOccurrenceRepository = scheduleOccurrenceRepository;
+        this.clock = clock;
     }
 
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public BookingResponse createExtraClass(CreateBookingRequest request, String professorEmail) {
         if (request.startTime() == null || request.endTime() == null || !request.startTime().isBefore(request.endTime())) {
             throw new BadRequestException("Start time must be strictly before end time");
+        }
+
+        if (java.time.LocalDateTime.of(request.date(), request.startTime()).isBefore(java.time.LocalDateTime.now(clock))) {
+            throw new BadRequestException("Cannot book a class in the past");
         }
 
         User authenticatedUser = userRepository.findByEmail(professorEmail)
@@ -118,6 +125,8 @@ public class BookingService {
                 occurrence.getRoom().getRoomNumber()
         );
 
+        Integer rescheduledFromId = occurrence.getRescheduledFrom() != null ? occurrence.getRescheduledFrom().getId() : null;
+
         return new BookingResponse(
                 occurrence.getId(),
                 occurrence.getEventType(),
@@ -128,7 +137,8 @@ public class BookingService {
                 occurrence.getCourseCode(),
                 occurrence.getCourseName(),
                 profSummary,
-                roomSummary
+                roomSummary,
+                rescheduledFromId
         );
     }
 }

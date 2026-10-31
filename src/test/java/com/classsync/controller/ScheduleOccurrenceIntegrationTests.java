@@ -1,10 +1,12 @@
 package com.classsync.controller;
 
 import com.classsync.dto.occurrence.GenerateOccurrencesRequest;
+import com.classsync.dto.occurrence.RescheduleRequest;
 import com.classsync.entity.*;
 import com.classsync.repository.*;
 import com.classsync.service.ScheduleOccurrenceService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.List;
 
 import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.*;
@@ -56,6 +59,9 @@ class ScheduleOccurrenceIntegrationTests {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private EntityManager entityManager;
 
     // =========================================================================
     // Occurrence Generation Tests (1 - 12)
@@ -557,6 +563,227 @@ class ScheduleOccurrenceIntegrationTests {
         assertThrows(DataIntegrityViolationException.class, () -> {
             scheduleOccurrenceRepository.saveAndFlush(officialDuplicate);
         });
+    }
+
+    // =========================================================================
+    // Prompt 11H Tests (N7–N13)
+    // =========================================================================
+
+    @Test
+    @DisplayName("N7. Ghost-class regression: rescheduling vacates slot and regeneration never recreates moved class")
+    @WithMockUser(username = "admin@classsync.edu", roles = {"ADMIN"})
+    void ghostClassRegressionRescheduleAndRegenerate() throws Exception {
+        TimetableVersion activeVersion = createAndActivateVersion("2026-2027", "N7");
+        TimetableEntry entry = createTimetableEntry(activeVersion, 2, 1, (byte) 1, LocalTime.of(9, 0), LocalTime.of(10, 0), "CS101", "Intro CS");
+
+        LocalDate mon = LocalDate.of(2026, 11, 2);
+        LocalDate sun = LocalDate.of(2026, 11, 8);
+        GenerateOccurrencesRequest genReq = new GenerateOccurrencesRequest(activeVersion.getId(), mon, sun);
+
+        // 1. Generate week
+        mockMvc.perform(post("/api/schedule-occurrences/generate")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(genReq)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.createdCount").value(1));
+
+        ScheduleOccurrence original = scheduleOccurrenceRepository.findWithFilters(mon, mon, 2, 1, null, ScheduleStatus.SCHEDULED).get(0);
+
+        // 2. Reschedule Monday to Wednesday
+        RescheduleRequest resReq = new RescheduleRequest(LocalDate.of(2026, 11, 4), LocalTime.of(14, 0), LocalTime.of(15, 0), 1);
+        mockMvc.perform(post("/api/classes/" + original.getId() + "/reschedule")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(resReq)))
+                .andExpect(status().isOk());
+
+        // 3. Regenerate same window
+        mockMvc.perform(post("/api/schedule-occurrences/generate")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(genReq)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.createdCount").value(0))
+                .andExpect(jsonPath("$.conflictCount").value(0))
+                .andExpect(jsonPath("$.skippedExistingCount").value(1));
+
+        // Exactly one row for (entry, mon) which is RESCHEDULED
+        ScheduleOccurrence inDb = scheduleOccurrenceRepository.findById(original.getId()).orElseThrow();
+        assertEquals(ScheduleStatus.RESCHEDULED, inDb.getStatus());
+        assertEquals(mon, inDb.getScheduleDate());
+    }
+
+    @Test
+    @DisplayName("N8. Rescheduling across generation boundary before next week generation creates official occurrence without error")
+    @WithMockUser(username = "admin@classsync.edu", roles = {"ADMIN"})
+    void rescheduleBeforeNextWeekGenerationSucceeds() throws Exception {
+        TimetableVersion activeVersion = createAndActivateVersion("2026-2027", "N8");
+        createTimetableEntry(activeVersion, 2, 1, (byte) 1, LocalTime.of(9, 0), LocalTime.of(10, 0), "CS101", "Intro CS");
+
+        LocalDate w1Mon = LocalDate.of(2026, 11, 2);
+        LocalDate w1Sun = LocalDate.of(2026, 11, 8);
+        LocalDate w2Mon = LocalDate.of(2026, 11, 9);
+        LocalDate w2Sun = LocalDate.of(2026, 11, 15);
+
+        // Generate week 1
+        adminGenerate(new GenerateOccurrencesRequest(activeVersion.getId(), w1Mon, w1Sun));
+        ScheduleOccurrence orig = scheduleOccurrenceRepository.findWithFilters(w1Mon, w1Mon, 2, 1, null, ScheduleStatus.SCHEDULED).get(0);
+
+        // Reschedule week 1 Monday to week 2 Monday at 14:00-15:00
+        RescheduleRequest resReq = new RescheduleRequest(w2Mon, LocalTime.of(14, 0), LocalTime.of(15, 0), 1);
+        mockMvc.perform(post("/api/classes/" + orig.getId() + "/reschedule")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(resReq)))
+                .andExpect(status().isOk());
+
+        // Generate week 2
+        mockMvc.perform(post("/api/schedule-occurrences/generate")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new GenerateOccurrencesRequest(activeVersion.getId(), w2Mon, w2Sun))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.createdCount").value(1))
+                .andExpect(jsonPath("$.conflictCount").value(0));
+    }
+
+    @Test
+    @DisplayName("N9. Rescheduling to a date that already has an official entry on same date succeeds with 200")
+    @WithMockUser(username = "admin@classsync.edu", roles = {"ADMIN"})
+    void rescheduleToAlreadyGeneratedDateSucceeds() throws Exception {
+        TimetableVersion activeVersion = createAndActivateVersion("2026-2027", "N9");
+        createTimetableEntry(activeVersion, 2, 1, (byte) 1, LocalTime.of(9, 0), LocalTime.of(10, 0), "CS101", "Intro CS");
+
+        LocalDate w1Mon = LocalDate.of(2026, 11, 2);
+        LocalDate w2Mon = LocalDate.of(2026, 11, 9);
+
+        // Generate both weeks
+        adminGenerate(new GenerateOccurrencesRequest(activeVersion.getId(), w1Mon, LocalDate.of(2026, 11, 15)));
+        ScheduleOccurrence w1Occ = scheduleOccurrenceRepository.findWithFilters(w1Mon, w1Mon, 2, 1, null, ScheduleStatus.SCHEDULED).get(0);
+
+        // Reschedule w1 Monday to w2 Monday at 14:00-15:00 in Room 1 (slot is free)
+        RescheduleRequest resReq = new RescheduleRequest(w2Mon, LocalTime.of(14, 0), LocalTime.of(15, 0), 1);
+        mockMvc.perform(post("/api/classes/" + w1Occ.getId() + "/reschedule")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(resReq)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("SCHEDULED"))
+                .andExpect(jsonPath("$.rescheduledFromId").value(w1Occ.getId()));
+    }
+
+    @Test
+    @DisplayName("N10. Extra booking in entry's room and time triggers ROOM_BUSY conflict on generation")
+    @WithMockUser(username = "admin@classsync.edu", roles = {"ADMIN"})
+    void extraBookingTriggersRoomBusyConflictOnGeneration() throws Exception {
+        TimetableVersion activeVersion = createAndActivateVersion("2026-2027", "N10");
+        createTimetableEntry(activeVersion, 2, 1, (byte) 1, LocalTime.of(9, 0), LocalTime.of(10, 0), "CS101", "Intro CS");
+
+        LocalDate mon = LocalDate.of(2026, 11, 2);
+        User lovelace = userRepository.findById(3).orElseThrow();
+        Room room1 = roomRepository.findById(1).orElseThrow();
+        User admin = userRepository.findById(1).orElseThrow();
+
+        // Create an EXTRA booking on that Monday 09:00-10:00 by Lovelace
+        ScheduleOccurrence extra = scheduleOccurrenceRepository.save(new ScheduleOccurrence(
+                null, lovelace, room1, mon, LocalTime.of(9, 0), LocalTime.of(10, 0),
+                ScheduleEventType.EXTRA, ScheduleStatus.SCHEDULED, "MATH999", "Special Seminar", admin
+        ));
+
+        // Generate occurrences
+        mockMvc.perform(post("/api/schedule-occurrences/generate")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new GenerateOccurrencesRequest(activeVersion.getId(), mon, mon))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.createdCount").value(0))
+                .andExpect(jsonPath("$.conflictCount").value(1))
+                .andExpect(jsonPath("$.conflicts[0].type").value("ROOM_BUSY"))
+                .andExpect(jsonPath("$.conflicts[0].conflictingOccurrenceId").value(extra.getId()))
+                .andExpect(jsonPath("$.conflicts[0].conflictingEventType").value("EXTRA"));
+
+        // No two SCHEDULED rows overlap in that room
+        List<ScheduleOccurrence> scheduledInRoom = scheduleOccurrenceRepository.findWithFilters(mon, mon, null, 1, null, ScheduleStatus.SCHEDULED);
+        assertEquals(1, scheduledInRoom.size());
+        assertEquals(extra.getId(), scheduledInRoom.get(0).getId());
+    }
+
+    @Test
+    @DisplayName("N11. Professor busy elsewhere triggers PROFESSOR_BUSY conflict on generation")
+    @WithMockUser(username = "admin@classsync.edu", roles = {"ADMIN"})
+    void professorBusyTriggersProfessorBusyConflict() throws Exception {
+        TimetableVersion activeVersion = createAndActivateVersion("2026-2027", "N11");
+        createTimetableEntry(activeVersion, 2, 1, (byte) 1, LocalTime.of(9, 0), LocalTime.of(10, 0), "CS101", "Intro CS");
+
+        LocalDate mon = LocalDate.of(2026, 11, 2);
+        User turing = userRepository.findById(2).orElseThrow();
+        Room room2 = roomRepository.findById(2).orElseThrow();
+        User admin = userRepository.findById(1).orElseThrow();
+
+        // Create an EXTRA booking for Turing in Room 2 (different room, same time)
+        ScheduleOccurrence extra = scheduleOccurrenceRepository.save(new ScheduleOccurrence(
+                null, turing, room2, mon, LocalTime.of(9, 0), LocalTime.of(10, 0),
+                ScheduleEventType.EXTRA, ScheduleStatus.SCHEDULED, "CS-EXTRA", "Research Meeting", admin
+        ));
+
+        mockMvc.perform(post("/api/schedule-occurrences/generate")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new GenerateOccurrencesRequest(activeVersion.getId(), mon, mon))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.createdCount").value(0))
+                .andExpect(jsonPath("$.conflictCount").value(1))
+                .andExpect(jsonPath("$.conflicts[0].type").value("PROFESSOR_BUSY"))
+                .andExpect(jsonPath("$.conflicts[0].conflictingOccurrenceId").value(extra.getId()))
+                .andExpect(jsonPath("$.conflicts[0].conflictingEventType").value("EXTRA"));
+    }
+
+    @Test
+    @DisplayName("N12. Cancelling conflicting EXTRA allows idempotent gap filling on next generation")
+    @WithMockUser(username = "admin@classsync.edu", roles = {"ADMIN"})
+    void cancellingExtraAllowsGapFilling() throws Exception {
+        TimetableVersion activeVersion = createAndActivateVersion("2026-2027", "N12");
+        createTimetableEntry(activeVersion, 2, 1, (byte) 1, LocalTime.of(9, 0), LocalTime.of(10, 0), "CS101", "Intro CS");
+
+        LocalDate mon = LocalDate.of(2026, 11, 2);
+        User lovelace = userRepository.findById(3).orElseThrow();
+        Room room1 = roomRepository.findById(1).orElseThrow();
+        User admin = userRepository.findById(1).orElseThrow();
+
+        ScheduleOccurrence extra = scheduleOccurrenceRepository.save(new ScheduleOccurrence(
+                null, lovelace, room1, mon, LocalTime.of(9, 0), LocalTime.of(10, 0),
+                ScheduleEventType.EXTRA, ScheduleStatus.SCHEDULED, "MATH999", "Special Seminar", admin
+        ));
+
+        // 1. First generation: fails with ROOM_BUSY
+        adminGenerate(new GenerateOccurrencesRequest(activeVersion.getId(), mon, mon));
+
+        // 2. Cancel the EXTRA
+        mockMvc.perform(post("/api/classes/" + extra.getId() + "/cancel"))
+                .andExpect(status().isOk());
+
+        // 3. Regenerate: gap is filled!
+        mockMvc.perform(post("/api/schedule-occurrences/generate")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new GenerateOccurrencesRequest(activeVersion.getId(), mon, mon))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.createdCount").value(1))
+                .andExpect(jsonPath("$.conflictCount").value(0));
+    }
+
+    @Test
+    @DisplayName("N13. Inactive room reports ROOM_INACTIVE conflict and occurrence is not created")
+    @WithMockUser(username = "admin@classsync.edu", roles = {"ADMIN"})
+    void inactiveRoomReportsRoomInactiveConflict() throws Exception {
+        TimetableVersion activeVersion = createAndActivateVersion("2026-2027", "N13");
+        Room room1 = roomRepository.findById(1).orElseThrow();
+        room1.setActive(false);
+        roomRepository.save(room1);
+
+        createTimetableEntry(activeVersion, 2, 1, (byte) 1, LocalTime.of(9, 0), LocalTime.of(10, 0), "CS101", "Intro CS");
+
+        LocalDate mon = LocalDate.of(2026, 11, 2);
+        mockMvc.perform(post("/api/schedule-occurrences/generate")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new GenerateOccurrencesRequest(activeVersion.getId(), mon, mon))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.createdCount").value(0))
+                .andExpect(jsonPath("$.conflictCount").value(1))
+                .andExpect(jsonPath("$.conflicts[0].type").value("ROOM_INACTIVE"))
+                .andExpect(jsonPath("$.conflicts[0].conflictingOccurrenceId").doesNotExist());
     }
 
     // =========================================================================

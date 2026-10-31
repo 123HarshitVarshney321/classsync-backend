@@ -1,15 +1,14 @@
 package com.classsync.controller;
 
+import com.classsync.dto.occurrence.GenerateOccurrencesRequest;
 import com.classsync.dto.timetable.CreateTimetableEntryRequest;
 import com.classsync.dto.timetable.CreateTimetableVersionRequest;
 import com.classsync.dto.timetable.UpdateTimetableEntryRequest;
 import com.classsync.entity.*;
-import com.classsync.repository.ComplexRepository;
-import com.classsync.repository.RoomRepository;
-import com.classsync.repository.TimetableEntryRepository;
-import com.classsync.repository.TimetableVersionRepository;
-import com.classsync.repository.UserRepository;
+import com.classsync.repository.*;
+import com.classsync.service.ScheduleOccurrenceService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,7 +20,9 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.*;
@@ -51,6 +52,15 @@ class TimetableIntegrationTests {
 
     @Autowired
     private ComplexRepository complexRepository;
+
+    @Autowired
+    private ScheduleOccurrenceRepository scheduleOccurrenceRepository;
+
+    @Autowired
+    private ScheduleOccurrenceService scheduleOccurrenceService;
+
+    @Autowired
+    private EntityManager entityManager;
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -620,5 +630,128 @@ class TimetableIntegrationTests {
                 .andExpect(status().isCreated())
                 .andReturn();
         return objectMapper.readTree(res.getResponse().getContentAsString()).get("id").asInt();
+    }
+
+    private void createTimetableEntryRequest(Integer versionId, Integer profId, Integer roomId, Byte dayOfWeek, LocalTime start, LocalTime end, String code, String name) throws Exception {
+        CreateTimetableEntryRequest req = new CreateTimetableEntryRequest(profId, code, name, roomId, dayOfWeek, start, end);
+        mockMvc.perform(post("/api/timetables/versions/{vId}/entries", versionId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isCreated());
+    }
+
+    // =========================================================================
+    // Prompt 11H Tests (N14–N17)
+    // =========================================================================
+
+    @Test
+    @DisplayName("N14. Version activation bulk-supersedes future official occurrences of old version while keeping past occurrences and extra bookings intact")
+    @WithMockUser(username = "admin@classsync.edu", roles = {"ADMIN"})
+    void activationBulkSupersedesFutureOccurrences() throws Exception {
+        // Create and activate V1
+        Integer v1Id = createDraftVersion("2026-2027", "N14");
+        createTimetableEntryRequest(v1Id, 2, 1, (byte) 1, LocalTime.of(9, 0), LocalTime.of(10, 0), "CS101", "Intro CS");
+        mockMvc.perform(patch("/api/timetables/versions/{id}/activate", v1Id)).andExpect(status().isOk());
+
+        // Generate occurrences for 2 weeks: week 1 (2026-11-02 to 2026-11-08), week 2 (2026-11-09 to 2026-11-15)
+        LocalDate w1Mon = LocalDate.of(2026, 11, 2);
+        LocalDate w2Mon = LocalDate.of(2026, 11, 9);
+        LocalDate w2Sun = LocalDate.of(2026, 11, 15);
+        GenerateOccurrencesRequest genReq = new GenerateOccurrencesRequest(v1Id, w1Mon, w2Sun);
+        scheduleOccurrenceService.generateOccurrences(genReq, "admin@classsync.edu");
+
+        // Add an EXTRA booking in week 2
+        User admin = userRepository.findById(1).orElseThrow();
+        User prof = userRepository.findById(2).orElseThrow();
+        Room room2 = roomRepository.findById(2).orElseThrow();
+        ScheduleOccurrence extra = scheduleOccurrenceRepository.save(new ScheduleOccurrence(
+                null, prof, room2, w2Mon, LocalTime.of(14, 0), LocalTime.of(15, 0),
+                ScheduleEventType.EXTRA, ScheduleStatus.SCHEDULED, "CS-EXTRA", "Extra Lecture", admin
+        ));
+
+        // Create V2
+        Integer v2Id = createDraftVersion("2026-2027", "N14");
+        createTimetableEntryRequest(v2Id, 2, 1, (byte) 1, LocalTime.of(10, 0), LocalTime.of(11, 0), "CS102", "Data Structures");
+
+        // Activate V2 with effectiveFrom = w2Mon
+        mockMvc.perform(patch("/api/timetables/versions/{id}/activate", v2Id)
+                        .param("effectiveFrom", w2Mon.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(v2Id))
+                .andExpect(jsonPath("$.status").value("ACTIVE"))
+                .andExpect(jsonPath("$.archivedVersionId").value(v1Id))
+                .andExpect(jsonPath("$.effectiveFrom").value(w2Mon.toString()))
+                .andExpect(jsonPath("$.supersededOccurrenceCount").value(1));
+
+        entityManager.flush();
+        entityManager.clear();
+
+        // Week 1 occurrence of V1 remains SCHEDULED
+        List<ScheduleOccurrence> w1Occs = scheduleOccurrenceRepository.findWithFilters(w1Mon, w1Mon, 2, 1, null, null);
+        assertEquals(1, w1Occs.size());
+        assertEquals(ScheduleStatus.SCHEDULED, w1Occs.get(0).getStatus());
+
+        // Week 2 occurrence of V1 became SUPERSEDED
+        List<ScheduleOccurrence> w2Occs = scheduleOccurrenceRepository.findWithFilters(w2Mon, w2Mon, 2, 1, null, null);
+        assertEquals(1, w2Occs.size());
+        assertEquals(ScheduleStatus.SUPERSEDED, w2Occs.get(0).getStatus());
+
+        // The EXTRA booking remains SCHEDULED
+        ScheduleOccurrence extraInDb = scheduleOccurrenceRepository.findById(extra.getId()).orElseThrow();
+        assertEquals(ScheduleStatus.SCHEDULED, extraInDb.getStatus());
+    }
+
+    @Test
+    @DisplayName("N15. Generating new version after supersession creates rows with no conflicts")
+    @WithMockUser(username = "admin@classsync.edu", roles = {"ADMIN"})
+    void generatingNewVersionAfterSupersessionHasNoConflicts() throws Exception {
+        // Create and activate V1
+        Integer v1Id = createDraftVersion("2026-2027", "N15");
+        createTimetableEntryRequest(v1Id, 2, 1, (byte) 1, LocalTime.of(9, 0), LocalTime.of(10, 0), "CS101", "Intro CS");
+        mockMvc.perform(patch("/api/timetables/versions/{id}/activate", v1Id)).andExpect(status().isOk());
+
+        LocalDate w1Mon = LocalDate.of(2026, 11, 2);
+        LocalDate w2Mon = LocalDate.of(2026, 11, 9);
+        LocalDate w2Sun = LocalDate.of(2026, 11, 15);
+        scheduleOccurrenceService.generateOccurrences(new GenerateOccurrencesRequest(v1Id, w1Mon, w2Sun), "admin@classsync.edu");
+
+        // Create V2 with same slot (Monday 09:00-10:00 in Room 1)
+        Integer v2Id = createDraftVersion("2026-2027", "N15");
+        createTimetableEntryRequest(v2Id, 2, 1, (byte) 1, LocalTime.of(9, 0), LocalTime.of(10, 0), "CS101-V2", "Intro CS V2");
+
+        // Activate V2 effective from week 2
+        mockMvc.perform(patch("/api/timetables/versions/{id}/activate", v2Id)
+                        .param("effectiveFrom", w2Mon.toString()))
+                .andExpect(status().isOk());
+
+        // Generate V2 over week 2
+        mockMvc.perform(post("/api/schedule-occurrences/generate")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new GenerateOccurrencesRequest(v2Id, w2Mon, w2Sun))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.createdCount").value(1))
+                .andExpect(jsonPath("$.conflictCount").value(0));
+    }
+
+    @Test
+    @DisplayName("N16. Version activation with effectiveFrom before today returns 400 Bad Request")
+    @WithMockUser(username = "admin@classsync.edu", roles = {"ADMIN"})
+    void activationWithPastEffectiveFromReturns400() throws Exception {
+        Integer vId = createDraftVersion("2026-2027", "N16");
+        // Fixed clock is 2026-10-01, effectiveFrom is 2026-09-30
+        mockMvc.perform(patch("/api/timetables/versions/{id}/activate", vId)
+                        .param("effectiveFrom", "2026-09-30"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message", is("effectiveFrom cannot be in the past")));
+    }
+
+    @Test
+    @DisplayName("N17. Version activation without effectiveFrom defaults to today (fixed clock)")
+    @WithMockUser(username = "admin@classsync.edu", roles = {"ADMIN"})
+    void activationWithoutEffectiveFromDefaultsToFixedClock() throws Exception {
+        Integer vId = createDraftVersion("2026-2027", "N17");
+        mockMvc.perform(patch("/api/timetables/versions/{id}/activate", vId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.effectiveFrom", is("2026-10-01")));
     }
 }

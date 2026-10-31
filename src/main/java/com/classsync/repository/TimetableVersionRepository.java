@@ -24,4 +24,15 @@ public interface TimetableVersionRepository extends JpaRepository<TimetableVersi
 
     @Query("SELECT v FROM TimetableVersion v JOIN FETCH v.createdBy WHERE v.id = :id")
     Optional<TimetableVersion> findByIdWithCreator(@Param("id") Integer id);
+
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT v FROM TimetableVersion v WHERE v.id = :id")
+    Optional<TimetableVersion> findByIdForUpdate(@Param("id") Integer id);
+
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT v FROM TimetableVersion v WHERE v.academicYear = :academicYear AND v.semester = :semester AND v.status = :status")
+    Optional<TimetableVersion> findByAcademicYearAndSemesterAndStatusForUpdate(
+            @Param("academicYear") String academicYear,
+            @Param("semester") String semester,
+            @Param("status") TimetableVersionStatus status);
 }

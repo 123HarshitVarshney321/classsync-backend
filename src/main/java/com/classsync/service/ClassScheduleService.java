@@ -16,19 +16,25 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
+import java.time.LocalDateTime;
+
 @Service
 public class ClassScheduleService {
 
     private final ScheduleOccurrenceRepository scheduleOccurrenceRepository;
     private final UserRepository userRepository;
     private final RoomRepository roomRepository;
+    private final Clock clock;
 
     public ClassScheduleService(ScheduleOccurrenceRepository scheduleOccurrenceRepository,
                                 UserRepository userRepository,
-                                RoomRepository roomRepository) {
+                                RoomRepository roomRepository,
+                                Clock clock) {
         this.scheduleOccurrenceRepository = scheduleOccurrenceRepository;
         this.userRepository = userRepository;
         this.roomRepository = roomRepository;
+        this.clock = clock;
     }
 
     @Transactional(isolation = Isolation.READ_COMMITTED)
@@ -38,8 +44,11 @@ public class ClassScheduleService {
                 .orElseThrow(() -> new ResourceNotFoundException("Schedule occurrence not found with id: " + occurrenceId));
 
         // 2. Cancellation eligibility: only SCHEDULED occurrences can be cancelled
-        if (occurrence.getStatus() == ScheduleStatus.CANCELLED) {
-            throw new DuplicateResourceException("Occurrence is already cancelled");
+        if (occurrence.getStatus() != ScheduleStatus.SCHEDULED) {
+            if (occurrence.getStatus() == ScheduleStatus.CANCELLED) {
+                throw new DuplicateResourceException("Occurrence is already cancelled");
+            }
+            throw new DuplicateResourceException("Only SCHEDULED occurrences can be cancelled (current status: " + occurrence.getStatus() + ")");
         }
 
         // 3. Authorization check
@@ -59,38 +68,51 @@ public class ClassScheduleService {
 
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public BookingResponse rescheduleOccurrence(Integer occurrenceId, RescheduleRequest request, String authenticatedUserEmail) {
-        // 1. Time range validation
+        // 1. Require startTime < endTime; otherwise 400
         if (request.startTime() == null || request.endTime() == null || !request.startTime().isBefore(request.endTime())) {
             throw new BadRequestException("Start time must be strictly before end time");
+        }
+
+        // 2. Reject past targets
+        if (LocalDateTime.of(request.date(), request.startTime()).isBefore(LocalDateTime.now(clock))) {
+            throw new BadRequestException("Cannot reschedule a class into the past");
         }
 
         User caller = userRepository.findByEmail(authenticatedUserEmail)
                 .orElseThrow(() -> new IllegalStateException("Authenticated user not found with email: " + authenticatedUserEmail));
 
-        // 2. Strict global lock hierarchy (Occurrence -> User -> Room) to prevent deadlocks:
-        // Lock 1: Occurrence being modified (serializes concurrent reschedule attempts on the same occurrence)
-        ScheduleOccurrence occurrence = scheduleOccurrenceRepository.findByIdWithLock(occurrenceId)
+        // 3. Lock the original (O). Return 404 if it does not exist.
+        ScheduleOccurrence original = scheduleOccurrenceRepository.findByIdWithLock(occurrenceId)
                 .orElseThrow(() -> new ResourceNotFoundException("Schedule occurrence not found with id: " + occurrenceId));
 
-        // Check eligibility: cancelled occurrences cannot be rescheduled
-        if (occurrence.getStatus() == ScheduleStatus.CANCELLED) {
-            throw new DuplicateResourceException("Cancelled occurrences cannot be rescheduled");
+        // 4. If the original's status != SCHEDULED, return 409
+        if (original.getStatus() != ScheduleStatus.SCHEDULED) {
+            if (original.getStatus() == ScheduleStatus.CANCELLED) {
+                throw new DuplicateResourceException("Cancelled occurrences cannot be rescheduled");
+            }
+            throw new DuplicateResourceException("Only SCHEDULED occurrences can be rescheduled (current status: " + original.getStatus() + ")");
         }
 
-        // Check caller authorization
-        if (caller.getRole() == UserRole.PROFESSOR && !occurrence.getProfessor().getId().equals(caller.getId())) {
+        // 5. Run the authorization check (existing 403 behavior)
+        if (caller.getRole() == UserRole.PROFESSOR && !original.getProfessor().getId().equals(caller.getId())) {
             throw new AccessDeniedException("Professors can only reschedule their own classes");
         }
 
-        // Lock 2: Assigned Professor row (serializes concurrent allocations for the same professor)
-        User assignedProfessor = userRepository.findByIdWithLock(occurrence.getProfessor().getId())
-                .orElseThrow(() -> new IllegalStateException("Assigned professor not found for locking: " + occurrence.getProfessor().getId()));
+        // 6. If date, start, end and room all equal the original's, return 400
+        if (request.date().equals(original.getScheduleDate())
+                && request.startTime().equals(original.getStartTime())
+                && request.endTime().equals(original.getEndTime())
+                && request.roomId().equals(original.getRoom().getId())) {
+            throw new BadRequestException("Reschedule target is identical to the current slot");
+        }
 
-        // Lock 3: Target Room row (serializes concurrent claims on the target room)
+        // 7. Lock the assigned professor (U), then the target room (R). Validate that the room and its complex are active.
+        User assignedProfessor = userRepository.findByIdWithLock(original.getProfessor().getId())
+                .orElseThrow(() -> new IllegalStateException("Assigned professor not found for locking: " + original.getProfessor().getId()));
+
         Room targetRoom = roomRepository.findByIdWithLock(request.roomId())
                 .orElseThrow(() -> new ResourceNotFoundException("Room not found with id: " + request.roomId()));
 
-        // Target room and complex active verification
         if (!targetRoom.getActive()) {
             throw new ResourceNotFoundException("Room is inactive with id: " + request.roomId());
         }
@@ -98,7 +120,7 @@ public class ClassScheduleService {
             throw new ResourceNotFoundException("Room belongs to an inactive complex");
         }
 
-        // 3. Conflict detection excluding the occurrence itself
+        // 8. Run conflict checks excluding the original occurrence
         boolean hasRoomConflict = scheduleOccurrenceRepository.existsRoomConflictExcludingId(
                 targetRoom.getId(),
                 request.date(),
@@ -121,14 +143,35 @@ public class ClassScheduleService {
             throw new DuplicateResourceException("Professor already has a scheduled class during the requested time.");
         }
 
-        // 4. Update the occurrence's date, time, and room while preserving all other attributes
-        occurrence.setScheduleDate(request.date());
-        occurrence.setStartTime(request.startTime());
-        occurrence.setEndTime(request.endTime());
-        occurrence.setRoom(targetRoom);
+        // 9. Set the original's status = RESCHEDULED. Nothing else on the original changes.
+        original.setStatus(ScheduleStatus.RESCHEDULED);
+        scheduleOccurrenceRepository.save(original);
 
-        ScheduleOccurrence saved = scheduleOccurrenceRepository.save(occurrence);
-        return toResponse(saved);
+        // 10. Insert the replacement row:
+        // Why timetableEntry = null on the replacement:
+        // - (timetable_entry_id, schedule_date) is the generator's idempotency key.
+        // - The original keeps the key, so the generator never re-creates the moved class.
+        // - The replacement never collides with uk_schedule_occurrences_entry_date.
+        // - Lineage is preserved through rescheduled_from_id.
+        ScheduleOccurrence replacement = new ScheduleOccurrence(
+                null, // timetableEntry = null
+                assignedProfessor,
+                targetRoom,
+                request.date(),
+                request.startTime(),
+                request.endTime(),
+                original.getEventType(),
+                ScheduleStatus.SCHEDULED,
+                original.getCourseCode(),
+                original.getCourseName(),
+                caller // createdBy = authenticated caller
+        );
+        replacement.setRescheduledFrom(original);
+
+        ScheduleOccurrence savedReplacement = scheduleOccurrenceRepository.save(replacement);
+
+        // 11. Return 200 with the replacement as a BookingResponse
+        return toResponse(savedReplacement);
     }
 
     private BookingResponse toResponse(ScheduleOccurrence occurrence) {
@@ -143,6 +186,8 @@ public class ClassScheduleService {
                 occurrence.getRoom().getRoomNumber()
         );
 
+        Integer rescheduledFromId = occurrence.getRescheduledFrom() != null ? occurrence.getRescheduledFrom().getId() : null;
+
         return new BookingResponse(
                 occurrence.getId(),
                 occurrence.getEventType(),
@@ -153,7 +198,8 @@ public class ClassScheduleService {
                 occurrence.getCourseCode(),
                 occurrence.getCourseName(),
                 profSummary,
-                roomSummary
+                roomSummary,
+                rescheduledFromId
         );
     }
 }

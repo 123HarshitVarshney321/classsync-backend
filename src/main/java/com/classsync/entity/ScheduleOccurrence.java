@@ -18,6 +18,10 @@ public class ScheduleOccurrence {
     private TimetableEntry timetableEntry;
 
     @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "rescheduled_from_id")
+    private ScheduleOccurrence rescheduledFrom;
+
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "professor_id", nullable = false)
     private User professor;
 
@@ -86,6 +90,14 @@ public class ScheduleOccurrence {
 
     public void setTimetableEntry(TimetableEntry timetableEntry) {
         this.timetableEntry = timetableEntry;
+    }
+
+    public ScheduleOccurrence getRescheduledFrom() {
+        return rescheduledFrom;
+    }
+
+    public void setRescheduledFrom(ScheduleOccurrence rescheduledFrom) {
+        this.rescheduledFrom = rescheduledFrom;
     }
 
     public User getProfessor() {

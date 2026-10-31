@@ -909,4 +909,25 @@ class BookingIntegrationTests {
         assertEquals(2, successes.get(), "Expected both concurrent bookings to succeed");
         assertEquals(0, conflicts.get(), "Expected zero conflicts");
     }
+
+    @Test
+    @DisplayName("N6. Booking before the fixed clock returns 400 Bad Request")
+    @WithMockUser(username = "aturing@classsync.edu", roles = {"PROFESSOR"})
+    void bookingBeforeFixedClockReturns400() throws Exception {
+        // Fixed clock is 2026-10-01, date is 2026-09-30
+        CreateBookingRequest request = new CreateBookingRequest(
+                1,
+                LocalDate.of(2026, 9, 30),
+                LocalTime.of(10, 0),
+                LocalTime.of(11, 0),
+                "CS101",
+                "Intro to CS"
+        );
+
+        mockMvc.perform(post("/api/bookings")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message", is("Cannot book a class in the past")));
+    }
 }
