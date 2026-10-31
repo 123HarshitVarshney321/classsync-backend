@@ -21,3 +21,7 @@ spring:
     properties:
       hibernate:
         format_sql: true
+
+app:
+  timezone: ${APP_TIMEZONE:Asia/Kolkata}
+

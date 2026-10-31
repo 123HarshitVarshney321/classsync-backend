@@ -18,8 +18,10 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -218,5 +220,19 @@ class SecurityAuthenticationTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("UP"))
                 .andExpect(jsonPath("$.service").value("ClassSync Backend"));
+    }
+
+    @Test
+    @DisplayName("12. Seed user password hashes match 'password123'")
+    void seedUserPasswordHashesMatchDefaultPassword() {
+        List.of("admin@classsync.edu", "aturing@classsync.edu", "alovelace@classsync.edu")
+                .forEach(email -> {
+                    User user = userRepository.findByEmail(email)
+                            .orElseThrow(() -> new AssertionError("Seed user not found: " + email));
+                    assertTrue(
+                            passwordEncoder.matches("password123", user.getPasswordHash()),
+                            "Password hash for " + email + " must match 'password123'"
+                    );
+                });
     }
 }

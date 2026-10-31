@@ -98,4 +98,13 @@ public class GlobalExceptionHandler {
                 "message", ex.getMessage() != null ? ex.getMessage() : "Access is denied"
         ));
     }
+
+    @ExceptionHandler(org.springframework.dao.PessimisticLockingFailureException.class)
+    public ResponseEntity<Map<String, Object>> handlePessimisticLockingFailure(org.springframework.dao.PessimisticLockingFailureException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
+                "status", 409,
+                "error", "Conflict",
+                "message", "The requested resource is locked by a concurrent operation. Please retry."
+        ));
+    }
 }
