@@ -220,7 +220,7 @@ $$\mathbf{S_1 < E_2 \quad \land \quad E_1 > S_2}$$
 
 ### 6.2 High-Performance Calendar Occurrence Projection
 Occurrence projection executes a constant 7 read and lock queries, independent of the projection window size, in strict code order:
-1. Version `FOR UPDATE` (`timetableVersionRepository.findByIdWithLock`);
+1. Version `FOR UPDATE` (`timetableVersionRepository.findByIdForUpdate`);
 2. Entries via join fetch (`timetableEntryRepository.findByTimetableVersionIdWithDetails`);
 3. Admin user lookup (`userRepository.findByEmail`);
 4. Professors `FOR UPDATE` in ascending ID order (`userRepository.lockAllByIdInOrder`);

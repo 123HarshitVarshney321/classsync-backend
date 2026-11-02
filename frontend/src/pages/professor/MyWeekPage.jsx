@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams, Link } from 'react-router'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { apiGetOccurrences, apiCancelClass } from '../../api/endpoints.js'
@@ -23,39 +23,23 @@ export default function MyWeekPage() {
   const [showCancelled, setShowCancelled] = useState(true)
   const [occurrences, setOccurrences] = useState([])
   const [loading, setLoading] = useState(true)
-  const [alertInfo, setAlertInfo] = useState(null) // { type: 'success'|'error', message }
+  const [alertInfo, setAlertInfo] = useState(null)
+  const [refreshKey, setRefreshKey] = useState(0)
 
   const [selectedOccurrence, setSelectedOccurrence] = useState(null)
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
   const [actionLoading, setActionLoading] = useState(false)
 
   const { start, end, days } = weekRange(currentDate)
-
-  const loadOccurrences = useCallback(async () => {
-    if (!user) return
-    try {
-      const data = await apiGetOccurrences({
-        professorId: user.id,
-        startDate: toApiDate(start),
-        endDate: toApiDate(end),
-      })
-      setOccurrences(data || [])
-    } catch (err) {
-      setAlertInfo({
-        type: 'error',
-        message: err.message || 'Failed to load classes for this week.',
-      })
-    } finally {
-      setLoading(false)
-    }
-  }, [user, start, end])
+  const weekStart = toApiDate(start)
+  const weekEnd = toApiDate(end)
 
   useEffect(() => {
     let active = true
     apiGetOccurrences({
       professorId: user?.id,
-      startDate: toApiDate(start),
-      endDate: toApiDate(end),
+      startDate: weekStart,
+      endDate: weekEnd,
     })
       .then((data) => {
         if (active) {
@@ -75,7 +59,7 @@ export default function MyWeekPage() {
     return () => {
       active = false
     }
-  }, [user?.id, start, end])
+  }, [user?.id, weekStart, weekEnd, refreshKey])
 
   const handleCancelClass = async () => {
     if (!selectedOccurrence) return
@@ -88,7 +72,7 @@ export default function MyWeekPage() {
         type: 'success',
         message: `Class ${selectedOccurrence.courseCode} cancelled successfully.`,
       })
-      await loadOccurrences()
+      setRefreshKey((k) => k + 1)
     } catch (err) {
       setAlertInfo({
         type: 'error',

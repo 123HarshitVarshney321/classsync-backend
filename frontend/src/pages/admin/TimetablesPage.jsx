@@ -12,6 +12,7 @@ import Alert from '../../components/Alert.jsx'
 import Modal from '../../components/Modal.jsx'
 import ConfirmDialog from '../../components/ConfirmDialog.jsx'
 import Loading from '../../components/Loading.jsx'
+import ActivateVersionModal from './ActivateVersionModal.jsx'
 
 export default function TimetablesPage() {
   const [versions, setVersions] = useState([])
@@ -19,49 +20,31 @@ export default function TimetablesPage() {
   const [alertInfo, setAlertInfo] = useState(null)
   const [refreshKey, setRefreshKey] = useState(0)
 
-  // New Draft Modal
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [academicYear, setAcademicYear] = useState('2026-27')
   const [semester, setSemester] = useState('1')
   const [creating, setCreating] = useState(false)
 
-  // Activate Modal
   const [activatingVersion, setActivatingVersion] = useState(null)
   const [effectiveFrom, setEffectiveFrom] = useState(toApiDate(new Date()))
   const [activating, setActivating] = useState(false)
 
-  // Archive Confirm
   const [archivingVersion, setArchivingVersion] = useState(null)
   const [archiving, setArchiving] = useState(false)
 
   useEffect(() => {
     let active = true
     apiGetTimetableVersions()
-      .then((data) => {
-        if (active) {
-          setVersions(data || [])
-          setLoading(false)
-        }
-      })
-      .catch((err) => {
-        if (active) {
-          setAlertInfo({ type: 'error', message: err.message || 'Failed to load timetable versions.' })
-          setLoading(false)
-        }
-      })
-    return () => {
-      active = false
-    }
+      .then((data) => { if (active) { setVersions(data || []); setLoading(false) } })
+      .catch((err) => { if (active) { setAlertInfo({ type: 'error', message: err.message || 'Failed to load timetable versions.' }); setLoading(false) } })
+    return () => { active = false }
   }, [refreshKey])
 
   const handleCreateDraft = async (e) => {
     e.preventDefault()
     setCreating(true)
     try {
-      await apiCreateTimetableVersion({
-        academicYear: academicYear.trim(),
-        semester: semester.trim(),
-      })
+      await apiCreateTimetableVersion({ academicYear: academicYear.trim(), semester: semester.trim() })
       setShowCreateModal(false)
       setAlertInfo({ type: 'success', message: 'New draft version created.' })
       setRefreshKey((k) => k + 1)
@@ -81,10 +64,7 @@ export default function TimetablesPage() {
       setActivatingVersion(null)
       const archMsg = res.archivedVersionId ? `Archived version: ${res.archivedVersionId}.` : 'Archived version: none.'
       const countMsg = `${res.supersededOccurrenceCount ?? 0} future classes superseded.`
-      setAlertInfo({
-        type: 'success',
-        message: `Version activated. ${archMsg} ${countMsg}`,
-      })
+      setAlertInfo({ type: 'success', message: `Version activated. ${archMsg} ${countMsg}` })
       setRefreshKey((k) => k + 1)
     } catch (err) {
       setAlertInfo({ type: 'error', message: err.message || 'Activation failed.' })
@@ -113,11 +93,8 @@ export default function TimetablesPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Timetable Versions</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Manage semester master blueprints, draft revisions, activations and archives.
-          </p>
+          <p className="text-sm text-gray-500 mt-1">Manage semester master blueprints, draft revisions, activations and archives.</p>
         </div>
-
         <button
           type="button"
           onClick={() => setShowCreateModal(true)}
@@ -134,7 +111,7 @@ export default function TimetablesPage() {
       ) : versions.length === 0 ? (
         <div className="bg-white border border-gray-200 rounded-lg p-12 text-center text-gray-500">
           <p className="font-semibold text-base">No timetable versions found.</p>
-          <p className="text-sm text-gray-400 mt-1">Click "New draft" to create the first timetable version.</p>
+          <p className="text-sm text-gray-400 mt-1">Click "New draft" above to create the first semester timetable blueprint.</p>
         </div>
       ) : (
         <div className="bg-white border border-gray-200 rounded-lg shadow-xs overflow-hidden">
@@ -143,10 +120,10 @@ export default function TimetablesPage() {
               <tr>
                 <th className="px-6 py-3 text-left">Academic Year</th>
                 <th className="px-6 py-3 text-left">Semester</th>
-                <th className="px-6 py-3 text-left">Version #</th>
+                <th className="px-6 py-3 text-left">Version</th>
                 <th className="px-6 py-3 text-left">Status</th>
                 <th className="px-6 py-3 text-left">Created By</th>
-                <th className="px-6 py-3 text-left">Created On</th>
+                <th className="px-6 py-3 text-left">Created At</th>
                 <th className="px-6 py-3 text-right">Actions</th>
               </tr>
             </thead>
@@ -154,34 +131,22 @@ export default function TimetablesPage() {
               {versions.map((v) => (
                 <tr key={v.id} className="hover:bg-gray-50">
                   <td className="px-6 py-3 font-semibold text-gray-900">{v.academicYear}</td>
-                  <td className="px-6 py-3 text-gray-600">Semester {v.semester}</td>
-                  <td className="px-6 py-3 font-mono font-medium text-gray-800">v{v.versionNumber}</td>
-                  <td className="px-6 py-3">
-                    <StatusBadge status={v.status} />
-                  </td>
+                  <td className="px-6 py-3 text-gray-700">{v.semester}</td>
+                  <td className="px-6 py-3 font-mono text-gray-600">v{v.versionNumber}</td>
+                  <td className="px-6 py-3"><StatusBadge status={v.status} /></td>
                   <td className="px-6 py-3 text-gray-600">{v.createdByName || 'Admin'}</td>
                   <td className="px-6 py-3 text-gray-500 text-xs">{v.createdAt ? v.createdAt.slice(0, 10) : '—'}</td>
                   <td className="px-6 py-3 text-right space-x-3">
-                    <Link
-                      to={`/admin/timetables/${v.id}`}
-                      className="text-blue-600 hover:underline font-semibold text-xs"
-                    >
-                      Open
-                    </Link>
-
+                    <Link to={`/admin/timetables/${v.id}`} className="text-blue-600 hover:underline font-semibold text-xs">Open</Link>
                     {v.status === 'DRAFT' && (
                       <button
                         type="button"
-                        onClick={() => {
-                          setActivatingVersion(v)
-                          setEffectiveFrom(toApiDate(new Date()))
-                        }}
+                        onClick={() => { setActivatingVersion(v); setEffectiveFrom(toApiDate(new Date())) }}
                         className="text-emerald-600 hover:underline font-semibold text-xs"
                       >
                         Activate
                       </button>
                     )}
-
                     {(v.status === 'DRAFT' || v.status === 'ACTIVE') && (
                       <button
                         type="button"
@@ -199,53 +164,20 @@ export default function TimetablesPage() {
         </div>
       )}
 
-      {/* New Draft Modal */}
       {showCreateModal && (
-        <Modal
-          isOpen={true}
-          onClose={() => setShowCreateModal(false)}
-          title="Create New Timetable Draft"
-        >
+        <Modal isOpen={true} onClose={() => setShowCreateModal(false)} title="Create New Timetable Draft">
           <form onSubmit={handleCreateDraft} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">
-                Academic Year *
-              </label>
-              <input
-                type="text"
-                required
-                value={academicYear}
-                onChange={(e) => setAcademicYear(e.target.value)}
-                placeholder="2026-27"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-              />
+              <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">Academic Year *</label>
+              <input type="text" required value={academicYear} onChange={(e) => setAcademicYear(e.target.value)} placeholder="2026-27" className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">
-                Semester *
-              </label>
-              <input
-                type="text"
-                required
-                value={semester}
-                onChange={(e) => setSemester(e.target.value)}
-                placeholder="1"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-              />
+              <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">Semester *</label>
+              <input type="text" required value={semester} onChange={(e) => setSemester(e.target.value)} placeholder="1" className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" />
             </div>
             <div className="flex justify-end gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setShowCreateModal(false)}
-                className="px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-md"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={creating}
-                className="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50"
-              >
+              <button type="button" onClick={() => setShowCreateModal(false)} className="px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-md">Cancel</button>
+              <button type="submit" disabled={creating} className="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50">
                 {creating ? 'Creating...' : 'Create Draft'}
               </button>
             </div>
@@ -253,52 +185,16 @@ export default function TimetablesPage() {
         </Modal>
       )}
 
-      {/* Activate Modal */}
-      {activatingVersion && (
-        <Modal
-          isOpen={true}
-          onClose={() => setActivatingVersion(null)}
-          title={`Activate Timetable Version v${activatingVersion.versionNumber}`}
-        >
-          <form onSubmit={handleConfirmActivate} className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">
-                Effective From Date *
-              </label>
-              <input
-                type="date"
-                required
-                value={effectiveFrom}
-                onChange={(e) => setEffectiveFrom(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-              />
-            </div>
+      <ActivateVersionModal
+        isOpen={Boolean(activatingVersion)}
+        version={activatingVersion}
+        effectiveFrom={effectiveFrom}
+        setEffectiveFrom={setEffectiveFrom}
+        loading={activating}
+        onConfirm={handleConfirmActivate}
+        onClose={() => setActivatingVersion(null)}
+      />
 
-            <div className="bg-amber-50 border border-amber-200 text-amber-800 text-xs p-3 rounded leading-relaxed">
-              The current ACTIVE version of the same academic year and semester will be archived. Its official classes on or after this date will be marked SUPERSEDED. Extra classes are not touched.
-            </div>
-
-            <div className="flex justify-end gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setActivatingVersion(null)}
-                className="px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-md"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={activating}
-                className="px-4 py-2 text-sm font-semibold text-white bg-emerald-600 rounded-md hover:bg-emerald-700 disabled:opacity-50"
-              >
-                {activating ? 'Activating...' : 'Confirm Activation'}
-              </button>
-            </div>
-          </form>
-        </Modal>
-      )}
-
-      {/* Archive Confirm Dialog */}
       {archivingVersion && (
         <ConfirmDialog
           isOpen={true}
