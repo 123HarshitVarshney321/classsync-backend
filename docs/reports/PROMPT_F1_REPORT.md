@@ -30,7 +30,7 @@
 | P1 setup + login + layout | DONE | Vite scaffold, Tailwind v4, declarative routing, client, endpoints, auth & placeholders |
 | P2 professor + occupancy | DONE | MyWeek, FindRoom (normal & reschedule), WeekNavigator, WeekCalendar, OccupancyGrid & OccupancyPage |
 | P3 admin | DONE | CampusPage (tabs & modals), TimetablesPage (versions & activation), VersionDetailPage (entries CRUD), GeneratePage (projection & conflicts) |
-| P4 tests + docs | NOT STARTED | |
+| P4 tests + docs | DONE | 21 unit tests (dates.test.js & client.test.js), frontend/README.md, root README link |
 | P5 walkthrough + report | NOT STARTED | |
 
 ## E. Deviations

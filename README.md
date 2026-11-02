@@ -396,3 +396,25 @@ Run the complete test suite:
 ```bash
 mvn clean test
 ```
+
+---
+
+## Running the Frontend
+
+The React frontend lives in the [`frontend/`](frontend/README.md) directory.
+
+### Quick Start
+1. Ensure the Spring Boot backend is running on `http://localhost:8080`:
+   ```bash
+   mvn spring-boot:run
+   ```
+2. In a separate terminal, navigate to `frontend/` and start the Vite dev server:
+   ```bash
+   cd frontend
+   npm install
+   npm run dev
+   ```
+3. Open `http://localhost:5173` in your browser.
+
+For complete frontend documentation, architecture notes, npm scripts, and proxy details, see [`frontend/README.md`](frontend/README.md).
+
