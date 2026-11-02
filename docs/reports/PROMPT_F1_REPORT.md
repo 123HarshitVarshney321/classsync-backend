@@ -29,7 +29,7 @@
 | B5 | DONE | Disabled requestCache in SecurityConfig; added test 22 asserting unauthenticated /api/auth/me creates no session |
 | P1 setup + login + layout | DONE | Vite scaffold, Tailwind v4, declarative routing, client, endpoints, auth & placeholders |
 | P2 professor + occupancy | DONE | MyWeek, FindRoom (normal & reschedule), WeekNavigator, WeekCalendar, OccupancyGrid & OccupancyPage |
-| P3 admin | NOT STARTED | |
+| P3 admin | DONE | CampusPage (tabs & modals), TimetablesPage (versions & activation), VersionDetailPage (entries CRUD), GeneratePage (projection & conflicts) |
 | P4 tests + docs | NOT STARTED | |
 | P5 walkthrough + report | NOT STARTED | |
 
