@@ -27,7 +27,7 @@
 | B3 | DONE | Removed dead activateVersion(Integer id) overload from TimetableVersionService |
 | B4 | DONE | Aligned generation query list in README.md and PROJECT_PROGRESS_REPORT.md to 7 queries in code order |
 | B5 | DONE | Disabled requestCache in SecurityConfig; added test 22 asserting unauthenticated /api/auth/me creates no session |
-| P1 setup + login + layout | NOT STARTED | |
+| P1 setup + login + layout | DONE | Vite scaffold, Tailwind v4, declarative routing, client, endpoints, auth & placeholders |
 | P2 professor + occupancy | NOT STARTED | |
 | P3 admin | NOT STARTED | |
 | P4 tests + docs | NOT STARTED | |
