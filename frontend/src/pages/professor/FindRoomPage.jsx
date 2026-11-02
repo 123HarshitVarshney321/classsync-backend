@@ -160,7 +160,6 @@ export default function FindRoomPage() {
       setCourseCode('')
       setCourseName('')
       setBookedSuccessInfo({ room: roomNum, date, start: toHHmm(startTime), end: toHHmm(endTime) })
-      handleSearch()
     } catch (err) {
       setAlertInfo({ type: 'error', message: err.message || 'Booking failed.' })
       setBookingRoom(null)
