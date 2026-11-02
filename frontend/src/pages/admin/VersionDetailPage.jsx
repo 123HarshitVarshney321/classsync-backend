@@ -203,8 +203,7 @@ export default function VersionDetailPage() {
                         <div className="text-xs text-gray-400">{entry.professor?.email}</div>
                       </td>
                       <td className="px-6 py-3 text-gray-700">
-                        <span className="font-medium">Room {entry.room?.roomNumber}</span>
-                        <span className="text-xs text-gray-500 block">{entry.room?.complex?.name || 'Complex'} ({entry.room?.complex?.code || ''})</span>
+                        Room {entry.room?.roomNumber}
                       </td>
                       {isDraft && (
                         <td className="px-6 py-3 text-right space-x-3">

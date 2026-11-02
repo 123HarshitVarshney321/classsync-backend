@@ -141,21 +141,19 @@ export default function RoomsTab({
               <th className="px-6 py-3 text-left">Room #</th>
               <th className="px-6 py-3 text-left">Type</th>
               <th className="px-6 py-3 text-left">Capacity</th>
-              <th className="px-6 py-3 text-left">Facilities</th>
               <th className="px-6 py-3 text-left">Status</th>
               <th className="px-6 py-3 text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {rooms.length === 0 ? (
-              <tr><td colSpan="6" className="px-6 py-8 text-center text-gray-500">No rooms found for this complex.</td></tr>
+              <tr><td colSpan="5" className="px-6 py-8 text-center text-gray-500">No rooms found for this complex.</td></tr>
             ) : (
               rooms.map((r) => (
                 <tr key={r.id} className="hover:bg-gray-50">
                   <td className="px-6 py-3 font-semibold text-gray-900">{r.roomNumber}</td>
                   <td className="px-6 py-3 text-gray-600">{ROOM_TYPES.find((t) => t.value === r.roomType)?.label || r.roomType}</td>
                   <td className="px-6 py-3 text-gray-600">{r.capacity}</td>
-                  <td className="px-6 py-3 text-xs text-gray-500">{r.facilities?.length > 0 ? r.facilities.map((f) => f.name).join(', ') : '—'}</td>
                   <td className="px-6 py-3"><StatusBadge status={r.active ? 'ACTIVE' : 'INACTIVE'} /></td>
                   <td className="px-6 py-3 text-right space-x-3">
                     <button type="button" onClick={() => openEdit(r)} className="text-blue-600 hover:underline font-medium text-xs">Edit</button>
