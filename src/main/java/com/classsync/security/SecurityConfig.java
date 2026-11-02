@@ -75,6 +75,7 @@ public class SecurityConfig {
         http
                 .cors(Customizer.withDefaults())
                 .csrf(AbstractHttpConfigurer::disable)
+                .requestCache(cache -> cache.disable())
                 .securityContext(context -> context
                         .securityContextRepository(securityContextRepository)
                 )

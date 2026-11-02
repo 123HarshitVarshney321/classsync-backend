@@ -806,6 +806,7 @@ class ClassScheduleIntegrationTests {
 
         AtomicInteger successes = new AtomicInteger(0);
         AtomicInteger failures = new AtomicInteger(0);
+        java.util.concurrent.atomic.AtomicReference<Throwable> unexpectedException = new java.util.concurrent.atomic.AtomicReference<>();
 
         RescheduleRequest reqA = new RescheduleRequest(testDate, LocalTime.of(14, 0), LocalTime.of(15, 0), 1);
         RescheduleRequest reqB = new RescheduleRequest(testDate, LocalTime.of(16, 0), LocalTime.of(17, 0), 2);
@@ -815,8 +816,10 @@ class ClassScheduleIntegrationTests {
                 barrier.await();
                 classScheduleService.rescheduleOccurrence(occ.getId(), reqA, "aturing@classsync.edu");
                 successes.incrementAndGet();
-            } catch (Exception e) {
+            } catch (DuplicateResourceException e) {
                 failures.incrementAndGet();
+            } catch (Throwable t) {
+                unexpectedException.set(t);
             } finally {
                 latch.countDown();
             }
@@ -827,8 +830,10 @@ class ClassScheduleIntegrationTests {
                 barrier.await();
                 classScheduleService.rescheduleOccurrence(occ.getId(), reqB, "aturing@classsync.edu");
                 successes.incrementAndGet();
-            } catch (Exception e) {
+            } catch (DuplicateResourceException e) {
                 failures.incrementAndGet();
+            } catch (Throwable t) {
+                unexpectedException.set(t);
             } finally {
                 latch.countDown();
             }
@@ -838,6 +843,9 @@ class ClassScheduleIntegrationTests {
         executor.shutdown();
 
         assertTrue(completed, "Concurrency test timed out");
+        if (unexpectedException.get() != null) {
+            fail("Expected only DuplicateResourceException but got unexpected exception: " + unexpectedException.get().getMessage(), unexpectedException.get());
+        }
         assertEquals(1, successes.get(), "Exactly one reschedule should succeed");
         assertEquals(1, failures.get(), "The other reschedule must fail");
 

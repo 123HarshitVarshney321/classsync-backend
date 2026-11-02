@@ -339,12 +339,14 @@ Two intervals $[S_1, E_1)$ and $[S_2, E_2)$ collide if and only if:
 $$\mathbf{S_1 < E_2 \quad \land \quad E_1 > S_2}$$
 
 ### 2. High-Performance Calendar Occurrence Projection
-Calendar occurrence generation executes a constant number of read/lock queries, independent of the projection window size:
-1. `SELECT ... FOR UPDATE` on the target version;
-2. `SELECT ... FOR UPDATE` on all professors involved (in ascending ID order);
-3. `SELECT ... FOR UPDATE` on all rooms involved (in ascending ID order);
-4. `SELECT` loading active timetable entries;
-5. Single `SELECT` fetching all scheduled occurrences across target rooms and professors within the date window.
+Calendar occurrence generation executes a constant 7 read/lock queries, independent of the projection window size, in strict code order:
+1. Version `FOR UPDATE` (`timetableVersionRepository.findByIdWithLock`);
+2. Entries via join fetch (`timetableEntryRepository.findByTimetableVersionIdWithDetails`);
+3. Admin user lookup (`userRepository.findByEmail`);
+4. Professors `FOR UPDATE` in ascending ID order (`userRepository.lockAllByIdInOrder`);
+5. Rooms `FOR UPDATE` in ascending ID order (`roomRepository.lockAllByIdInOrder`);
+6. Existing `(entry, date)` keys (`scheduleOccurrenceRepository.findExistingEntryDates`);
+7. `SCHEDULED` occurrences in the window for all involved rooms and professors (`scheduleOccurrenceRepository.findScheduledInWindowForRoomsOrProfessors`).
 
 New occurrences are then inserted (one `INSERT` per new row because `GenerationType.IDENTITY` disables Hibernate JDBC batch inserts).
 

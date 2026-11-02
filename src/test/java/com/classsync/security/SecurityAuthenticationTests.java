@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
@@ -368,5 +369,16 @@ class SecurityAuthenticationTests {
         mockMvc.perform(get("/api/users"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.status").value(401));
+    }
+
+    @Test
+    @DisplayName("22. Unauthenticated request to /api/auth/me creates no session")
+    void unauthenticatedRequestToMeCreatesNoSession() throws Exception {
+        MvcResult result = mockMvc.perform(get("/api/auth/me"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status").value(401))
+                .andReturn();
+
+        assertNull(result.getRequest().getSession(false), "Unauthenticated request must not create an HttpSession");
     }
 }

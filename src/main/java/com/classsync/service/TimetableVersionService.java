@@ -134,10 +134,6 @@ public class TimetableVersionService {
         );
     }
 
-    @Transactional(isolation = Isolation.READ_COMMITTED)
-    public TimetableActivationResponse activateVersion(Integer id) {
-        return activateVersion(id, null);
-    }
 
     @Transactional
     public TimetableVersionResponse archiveVersion(Integer id) {

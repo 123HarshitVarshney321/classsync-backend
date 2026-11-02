@@ -115,29 +115,34 @@ class GenerationConcurrencyIntegrationTests {
                 boolean done = latch.await(10, TimeUnit.SECONDS);
                 assertTrue(done, "Iteration " + i + " timed out");
 
-                // Invariant: There are NEVER two overlapping SCHEDULED rows in that room
+                // Invariant: There is ALWAYS exactly one SCHEDULED row in that room (never 0, never >1)
                 List<ScheduleOccurrence> scheduledRows = scheduleOccurrenceRepository.findWithFilters(
                         testDate, testDate, null, room.getId(), null, ScheduleStatus.SCHEDULED
                 );
 
-                assertTrue(scheduledRows.size() <= 1,
+                assertEquals(1, scheduledRows.size(),
                         "Iteration " + i + " failed: found " + scheduledRows.size() + " overlapping SCHEDULED rows!");
 
-                if (scheduledRows.size() == 1) {
-                    ScheduleOccurrence occ = scheduledRows.get(0);
-                    if (occ.getEventType() == ScheduleEventType.OFFICIAL) {
-                        // Generation won: booking should have failed with DuplicateResourceException or PessimisticLockingFailureException
-                        assertTrue(bookingException.get() instanceof DuplicateResourceException
-                                        || bookingException.get() instanceof PessimisticLockingFailureException,
-                                "When generation wins, booking must fail with conflict");
+                boolean generationCreated = (genResponse.get() != null && genResponse.get().createdCount() == 1);
+                boolean bookingCreated = bookingSucceeded.get();
+                assertTrue(generationCreated ^ bookingCreated,
+                        "Iteration " + i + ": Exactly one operation must have produced the row (genCreated=" + generationCreated + ", bookingCreated=" + bookingCreated + ")");
+
+                ScheduleOccurrence occ = scheduledRows.get(0);
+                if (occ.getEventType() == ScheduleEventType.OFFICIAL) {
+                    assertTrue(generationCreated, "Occurrence is OFFICIAL so generation must have created it");
+                    // Generation won: booking should have failed with DuplicateResourceException or PessimisticLockingFailureException
+                    assertTrue(bookingException.get() instanceof DuplicateResourceException
+                                    || bookingException.get() instanceof PessimisticLockingFailureException,
+                            "When generation wins, booking must fail with conflict");
+                } else {
+                    assertTrue(bookingCreated, "Occurrence is EXTRA so booking must have created it");
+                    // Booking won: generation should report ROOM_BUSY conflict or have failed with lock failure
+                    if (genResponse.get() != null) {
+                        assertEquals(1, genResponse.get().conflictCount(), "Generation should report ROOM_BUSY conflict");
+                        assertEquals(GenerationConflictType.ROOM_BUSY, genResponse.get().conflicts().get(0).type());
                     } else {
-                        // Booking won: generation should report ROOM_BUSY conflict or have failed with lock failure
-                        if (genResponse.get() != null) {
-                            assertEquals(1, genResponse.get().conflictCount(), "Generation should report ROOM_BUSY conflict");
-                            assertEquals(GenerationConflictType.ROOM_BUSY, genResponse.get().conflicts().get(0).type());
-                        } else {
-                            assertTrue(genException.get() instanceof PessimisticLockingFailureException);
-                        }
+                        assertTrue(genException.get() instanceof PessimisticLockingFailureException);
                     }
                 }
             } finally {
