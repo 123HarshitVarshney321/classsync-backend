@@ -399,3 +399,4 @@ The **ClassSync Backend** is a complete, thoroughly tested university classroom 
 
 ---
 *Report updated on October 31, 2026. Branch `hardening/prompt-11h`.*
+*Demo dataset added (Prompt S1): 4 complexes, 18 rooms, 10 professors, 2 timetable versions, 298 class occurrences with cancellations, reschedules, and bookings.*

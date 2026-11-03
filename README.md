@@ -92,6 +92,51 @@ curl http://localhost:8080/api/health
 
 ---
 
+## Demo Data
+
+ClassSync includes a realistic, pre-validated demo dataset loaded via Java seeder under Spring profile `demo`. It provides realistic university operations (past attendance history, upcoming classes, live cancellations, reschedules, and room bookings) without touching Flyway migrations.
+
+### Dataset Overview
+* **Complexes**: 4 active complexes (`SEC`, `HSS`, `LHC`, `MB`)
+* **Rooms**: 18 rooms total (17 active; `MB-G05` deactivated under renovation)
+* **Facilities**: 6 equipment facilities (`Projector`, `Smart Board`, `Air Conditioning`, `Audio System`, `Computers`, `Video Conferencing`)
+* **Professors**: 10 active professors (2 seed + 8 new accounts)
+* **Timetable Versions**: 2 versions for 2026-27 / Semester 1:
+  - `v1` (ACTIVE): 36 weekly entries
+  - `v2` (DRAFT): 37 weekly entries (ready to demo supersession and version activation)
+* **Class Occurrences**: 298 total occurrences generated across an 8-week window (week −3 to week +4):
+  - **289 SCHEDULED** (282 official + 7 extra bookings)
+  - **6 CANCELLED** (spread across past and future weeks)
+  - **3 RESCHEDULED** (with non-destructive audit pointers to replacements)
+
+### Professor Accounts
+All professor accounts use password `password123`:
+* `aturing@classsync.edu` (Alan Turing)
+* `alovelace@classsync.edu` (Ada Lovelace)
+* `ghopper@classsync.edu` (Dr. Grace Hopper)
+* `edijkstra@classsync.edu` (Dr. Edsger Dijkstra)
+* `jvonneumann@classsync.edu` (Dr. John von Neumann)
+* `cshannon@classsync.edu` (Dr. Claude Shannon)
+* `sramanujan@classsync.edu` (Dr. Srinivasa Ramanujan)
+* `cvraman@classsync.edu` (Dr. C. V. Raman)
+* `hbhabha@classsync.edu` (Dr. Homi Bhabha)
+* `snbose@classsync.edu` (Dr. Satyendra Nath Bose)
+* Admin account: `admin@classsync.edu` / `Admin@123`
+
+### Relative Dates & Isolation
+* **Dynamic Relative Window**: All class dates are anchored dynamically to $W_0$ (Monday of the seeding week). Past weeks are populated for analytics demonstrations, while future weeks support live booking, rescheduling, and conflict detection.
+* **Strict Isolation**: Demo data is loaded **only** into `classsync_demo` when running with profile `demo`. The standard developer database (`classsync`) and automated test database (`classsync_test`) are never seeded.
+
+### Run Modes & Management Scripts
+* `./run.sh`: Runs against the default development database (`classsync`).
+* `./run.sh --demo`: Runs against an existing `classsync_demo` database without reseeding.
+* `./run.sh --fresh-demo`: Completely drops, recreates, and reseeds `classsync_demo` with fresh demo data.
+* `./stop.sh`: Safely terminates backend and frontend processes and frees ports 8080 and 5173.
+
+For a detailed manual evaluation script, see [`docs/DEMO_GUIDE.md`](docs/DEMO_GUIDE.md).
+
+---
+
 ## API Specification
 
 ### 1. Authentication & Session Management
