@@ -4,8 +4,9 @@
 # ClassSync One-Click Startup Script
 #
 # Usage:
-#   ./run.sh          # Runs against standard database ('classsync')
-#   ./run.sh --demo   # Runs against demo database ('classsync_demo')
+#   ./run.sh              # Runs against standard database ('classsync')
+#   ./run.sh --demo       # Runs against existing demo database ('classsync_demo')
+#   ./run.sh --fresh-demo # Drops & reseeds 'classsync_demo' with demo profile
 # ==============================================================================
 
 set -e
@@ -17,12 +18,16 @@ echo "=================================================="
 echo "          ClassSync Startup Script                "
 echo "=================================================="
 
-# Check for --demo flag
-if [ "$1" == "--demo" ]; then
-    echo "Mode: Running with DEMO database (classsync_demo)"
+MODE="default"
+if [ "$1" == "--fresh-demo" ]; then
+    MODE="fresh-demo"
+    echo "Mode: FRESH DEMO (classsync_demo will be re-seeded)"
+elif [ "$1" == "--demo" ]; then
+    MODE="demo"
+    echo "Mode: DEMO database (classsync_demo)"
     export DB_URL="jdbc:mysql://localhost:3306/classsync_demo?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
 else
-    echo "Mode: Running with DEFAULT database (classsync)"
+    echo "Mode: DEFAULT database (classsync)"
 fi
 
 # 1. Check if MySQL is running
@@ -38,14 +43,22 @@ if ! mysqladmin ping -u root --silent 2>/dev/null; then
 fi
 echo "✓ MySQL is running."
 
-# 2. Check / Build Backend JAR
+# In --fresh-demo mode: drop database and set DB_URL and active profile
+if [ "$MODE" == "fresh-demo" ]; then
+    echo "Resetting classsync_demo database..."
+    mysql -u root -e "DROP DATABASE IF EXISTS classsync_demo;"
+    export DB_URL="jdbc:mysql://localhost:3306/classsync_demo?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
+    export SPRING_PROFILES_ACTIVE="demo"
+fi
+
+# 2. Check / Build Backend JAR (rebuild if missing or if src/pom.xml newer)
 echo ""
 JAR_PATH="$PROJECT_ROOT/target/classsync-backend-0.0.1-SNAPSHOT.jar"
-if [ ! -f "$JAR_PATH" ]; then
-    echo "[2/4] Backend JAR not found. Building with Maven (skipping tests)..."
-    mvn package -DskipTests
+if [ ! -f "$JAR_PATH" ] || [ -n "$(find src pom.xml -newer "$JAR_PATH" -print -quit)" ]; then
+    echo "[2/4] Building backend JAR with Maven (skipping tests)..."
+    mvn -q package -DskipTests
 else
-    echo "[2/4] Backend JAR found ($JAR_PATH)."
+    echo "[2/4] Backend JAR is up to date ($JAR_PATH)."
 fi
 
 # 3. Check Frontend Dependencies
@@ -102,6 +115,28 @@ if [ $RETRIES -le 0 ]; then
 fi
 echo "✓ Backend is UP and running at http://localhost:8080"
 
+# In --fresh-demo mode, wait up to 120s for demo data to be loaded
+if [ "$MODE" == "fresh-demo" ]; then
+    echo "Waiting for demo data to be loaded..."
+    SEED_RETRIES=120
+    LOADED_LINE=""
+    while [ $SEED_RETRIES -gt 0 ]; do
+        LOADED_LINE=$(grep "Demo data loaded:" /tmp/classsync-backend.log 2>/dev/null || true)
+        if [ -n "$LOADED_LINE" ]; then
+            break
+        fi
+        sleep 1
+        SEED_RETRIES=$((SEED_RETRIES - 1))
+    done
+
+    if [ -z "$LOADED_LINE" ]; then
+        echo "Error: Demo data failed to load within 120s. Last 40 lines of /tmp/classsync-backend.log:"
+        tail -n 40 /tmp/classsync-backend.log
+        exit 1
+    fi
+    echo "$LOADED_LINE"
+fi
+
 # 6. Start Frontend
 echo "Starting Frontend dev server on http://localhost:5173..."
 cd "$PROJECT_ROOT/frontend"
@@ -131,4 +166,3 @@ echo "=================================================="
 
 # Wait for Ctrl+C
 wait
-
