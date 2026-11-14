@@ -9,7 +9,7 @@ const ROOM_TYPE_LABELS = {
   SEMINAR_HALL: 'Seminar hall',
 }
 
-export default function OccupancyGrid({ groupedRooms, occurrences = [] }) {
+export default function OccupancyGrid({ groupedRooms, occurrences = [], onBlockClick }) {
   // Map occurrences by roomId
   const occurrencesByRoom = {}
   for (const occ of occurrences) {
@@ -126,6 +126,29 @@ export default function OccupancyGrid({ groupedRooms, occurrences = [] }) {
                         const titleText = `${occ.courseCode} (${toHHmm(occ.startTime)}–${toHHmm(
                           occ.endTime,
                         )}): ${occ.courseName || ''} - Prof. ${occ.professor?.name || ''}`
+
+                        if (onBlockClick) {
+                          return (
+                            <button
+                              type="button"
+                              key={occ.id}
+                              title={titleText}
+                              onClick={() => onBlockClick(occ)}
+                              className={`absolute top-1.5 bottom-1.5 rounded px-2 py-1 text-xs text-left font-medium border truncate overflow-hidden transition-colors cursor-pointer hover:shadow-xs ${colorClass}`}
+                              style={{
+                                left: `${startPercent}%`,
+                                width: `${sizePercent}%`,
+                              }}
+                            >
+                              <span className="font-bold">{occ.courseCode}</span>
+                              {occ.professor?.name && (
+                                <span className="ml-1 opacity-80 text-[11px]">
+                                  · {occ.professor.name}
+                                </span>
+                              )}
+                            </button>
+                          )
+                        }
 
                         return (
                           <div

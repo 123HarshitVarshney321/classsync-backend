@@ -74,3 +74,21 @@ export function blockPosition(start, end, dayStart = 480, dayEnd = 1200) {
 
   return { startPercent, sizePercent }
 }
+
+export function timeOfDayPercent(date, dayStart = 480, dayEnd = 1200) {
+  if (!date) return null
+  let minutes
+  if (date instanceof Date) {
+    minutes = date.getHours() * 60 + date.getMinutes()
+  } else if (typeof date === 'string') {
+    minutes = timeToMinutes(date)
+  } else if (typeof date === 'number') {
+    minutes = date
+  } else {
+    return null
+  }
+  if (minutes < dayStart || minutes >= dayEnd) {
+    return null
+  }
+  return ((minutes - dayStart) / (dayEnd - dayStart)) * 100
+}

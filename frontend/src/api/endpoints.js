@@ -146,3 +146,12 @@ export function apiUpdateTimetableEntry(entryId, body) {
 export function apiDeleteTimetableEntry(entryId) {
   return request('DELETE', `/api/timetables/entries/${entryId}`)
 }
+
+// Analytics
+export function apiGetUtilization({ startDate, endDate, complexId } = {}) {
+  const query = { startDate, endDate }
+  if (complexId) {
+    query.complexId = complexId
+  }
+  return request('GET', '/api/analytics/utilization', { query })
+}

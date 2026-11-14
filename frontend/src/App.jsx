@@ -13,6 +13,7 @@ import CampusPage from './pages/admin/CampusPage.jsx'
 import TimetablesPage from './pages/admin/TimetablesPage.jsx'
 import VersionDetailPage from './pages/admin/VersionDetailPage.jsx'
 import GeneratePage from './pages/admin/GeneratePage.jsx'
+import AnalyticsPage from './pages/admin/AnalyticsPage.jsx'
 
 function HomeRedirect() {
   const { user, loading } = useAuth()
@@ -90,6 +91,14 @@ export default function App() {
             element={
               <RequireRole allowedRoles={['ADMIN']}>
                 <GeneratePage />
+              </RequireRole>
+            }
+          />
+          <Route
+            path="/admin/analytics"
+            element={
+              <RequireRole allowedRoles={['ADMIN']}>
+                <AnalyticsPage />
               </RequireRole>
             }
           />

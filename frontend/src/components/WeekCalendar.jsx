@@ -1,5 +1,6 @@
+import { useState, useEffect } from 'react'
 import { format } from 'date-fns'
-import { toApiDate, toHHmm, blockPosition } from '../utils/dates.js'
+import { toApiDate, toHHmm, blockPosition, timeOfDayPercent } from '../utils/dates.js'
 
 const HOURS = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
 
@@ -9,6 +10,15 @@ export default function WeekCalendar({
   showCancelled = true,
   onSelectOccurrence,
 }) {
+  const [now, setNow] = useState(() => new Date())
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNow(new Date())
+    }, 60000)
+    return () => clearInterval(timer)
+  }, [])
+
   const visibleOccurrences = occurrences.filter((occ) => {
     if (!showCancelled && occ.status !== 'SCHEDULED') return false
     return true
@@ -28,6 +38,8 @@ export default function WeekCalendar({
     }
   }
 
+  const todayStr = toApiDate(now)
+
   return (
     <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-x-auto">
       <div className="min-w-[800px]">
@@ -36,7 +48,7 @@ export default function WeekCalendar({
           <div className="p-3 text-center border-r border-gray-200">Time</div>
           {days.map((day) => {
             const dateStr = toApiDate(day)
-            const isToday = toApiDate(new Date()) === dateStr
+            const isToday = todayStr === dateStr
             return (
               <div
                 key={dateStr}
@@ -75,6 +87,8 @@ export default function WeekCalendar({
           {days.map((day) => {
             const dateKey = toApiDate(day)
             const dayOccurrences = occurrencesByDate[dateKey] || []
+            const isToday = todayStr === dateKey
+            const nowPercent = isToday ? timeOfDayPercent(now) : null
 
             return (
               <div
@@ -88,7 +102,7 @@ export default function WeekCalendar({
                     <div
                       key={hour}
                       className="absolute w-full border-t border-gray-100"
-                      style={{ top: `${((idx) / (HOURS.length - 1)) * 100}%` }}
+                      style={{ top: `${(idx / (HOURS.length - 1)) * 100}%` }}
                     />
                   )
                 })}
@@ -165,6 +179,14 @@ export default function WeekCalendar({
                     </button>
                   )
                 })}
+
+                {/* Now line (above blocks) */}
+                {nowPercent !== null && (
+                  <div
+                    className="absolute w-full h-[2px] bg-red-500 pointer-events-none z-30"
+                    style={{ top: `${nowPercent}%` }}
+                  />
+                )}
               </div>
             )
           })}

@@ -8,6 +8,7 @@ import {
   timeToMinutes,
   overlaps,
   blockPosition,
+  timeOfDayPercent,
 } from './dates.js'
 
 describe('dates utils', () => {
@@ -108,5 +109,27 @@ describe('dates utils', () => {
     // completely outside: 06:00 to 07:00
     const posOutside = blockPosition('06:00', '07:00')
     expect(posOutside.sizePercent).toBe(0)
+  })
+
+  describe('timeOfDayPercent', () => {
+    it('returns 0 for 08:00', () => {
+      expect(timeOfDayPercent('08:00')).toBe(0)
+      expect(timeOfDayPercent(new Date(2026, 10, 14, 8, 0))).toBe(0)
+    })
+
+    it('returns 50 for 14:00', () => {
+      expect(timeOfDayPercent('14:00')).toBe(50)
+      expect(timeOfDayPercent(new Date(2026, 10, 14, 14, 0))).toBe(50)
+    })
+
+    it('returns null for 07:59', () => {
+      expect(timeOfDayPercent('07:59')).toBeNull()
+      expect(timeOfDayPercent(new Date(2026, 10, 14, 7, 59))).toBeNull()
+    })
+
+    it('returns null for 20:00', () => {
+      expect(timeOfDayPercent('20:00')).toBeNull()
+      expect(timeOfDayPercent(new Date(2026, 10, 14, 20, 0))).toBeNull()
+    })
   })
 })

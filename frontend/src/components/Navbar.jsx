@@ -66,6 +66,9 @@ export default function Navbar() {
                   <Link to="/occupancy" className={navLinkClass('/occupancy')}>
                     Occupancy
                   </Link>
+                  <Link to="/admin/analytics" className={navLinkClass('/admin/analytics')}>
+                    Analytics
+                  </Link>
                 </>
               )}
             </div>
