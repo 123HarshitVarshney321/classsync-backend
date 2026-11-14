@@ -96,7 +96,7 @@ export default function MyWeekPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 tracking-tight">My Week</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Weekly teaching schedule for Dr. {user?.name}
+            Weekly teaching schedule for {user?.name}
           </p>
         </div>
 
