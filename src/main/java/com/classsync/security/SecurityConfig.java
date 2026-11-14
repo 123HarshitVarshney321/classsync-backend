@@ -93,6 +93,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/health").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
+                        // Rules for test-only endpoints (controller lives in src/test). Harmless in production: no handler exists.
                         .requestMatchers("/api/test/admin").hasRole("ADMIN")
                         .requestMatchers("/api/test/professor").hasAnyRole("PROFESSOR", "ADMIN")
                         .requestMatchers("/api/test/authenticated").authenticated()

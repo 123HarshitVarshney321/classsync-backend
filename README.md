@@ -62,7 +62,7 @@ Configuration is managed via `src/main/resources/application.yml` and environmen
 | Environment Variable | Description | Default Value |
 |---|---|---|
 | `PORT` | HTTP server port | `8080` |
-| `DB_URL` | MySQL JDBC URL | `jdbc:mysql://localhost:3306/classsync?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC` |
+| `DB_URL` | MySQL JDBC URL | `jdbc:mysql://localhost:3306/classsync?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Kolkata` |
 | `DB_USERNAME` | MySQL database user | `root` |
 | `DB_PASSWORD` | MySQL password | (empty) |
 | `APP_TIMEZONE` | Application timezone | `Asia/Kolkata` |

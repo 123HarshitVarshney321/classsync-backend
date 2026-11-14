@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import Modal from './Modal.jsx'
 
 export default function ConfirmDialog({
@@ -11,8 +12,19 @@ export default function ConfirmDialog({
   onCancel,
   loading = false,
 }) {
+  useEffect(() => {
+    if (!isOpen || loading) return
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        onCancel?.()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen, loading, onCancel])
+
   return (
-    <Modal isOpen={isOpen} onClose={onCancel} title={title} maxWidth="max-w-md">
+    <Modal isOpen={isOpen} onClose={loading ? undefined : onCancel} title={title} maxWidth="max-w-md">
       <div className="space-y-4">
         <p className="text-sm text-gray-600">{message}</p>
         <div className="flex justify-end gap-3 pt-2">

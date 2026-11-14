@@ -25,7 +25,7 @@ if [ "$1" == "--fresh-demo" ]; then
 elif [ "$1" == "--demo" ]; then
     MODE="demo"
     echo "Mode: DEMO database (classsync_demo)"
-    export DB_URL="jdbc:mysql://localhost:3306/classsync_demo?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
+    export DB_URL="jdbc:mysql://localhost:3306/classsync_demo?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Kolkata"
 else
     echo "Mode: DEFAULT database (classsync)"
 fi
@@ -47,7 +47,7 @@ echo "✓ MySQL is running."
 if [ "$MODE" == "fresh-demo" ]; then
     echo "Resetting classsync_demo database..."
     mysql -u root -e "DROP DATABASE IF EXISTS classsync_demo;"
-    export DB_URL="jdbc:mysql://localhost:3306/classsync_demo?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
+    export DB_URL="jdbc:mysql://localhost:3306/classsync_demo?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Kolkata"
     export SPRING_PROFILES_ACTIVE="demo"
 fi
 
