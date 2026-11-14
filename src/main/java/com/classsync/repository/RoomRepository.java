@@ -49,6 +49,14 @@ public interface RoomRepository extends JpaRepository<Room, Integer> {
             @Param("busyRoomIds") java.util.Collection<Integer> busyRoomIds
     );
 
+    @Query("""
+        SELECT r FROM Room r JOIN FETCH r.complex c
+        WHERE r.active = true AND c.active = true
+          AND (:complexId IS NULL OR c.id = :complexId)
+        ORDER BY c.name ASC, r.roomNumber ASC
+    """)
+    List<Room> findActiveRoomsInScope(@Param("complexId") Integer complexId);
+
     @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT r FROM Room r WHERE r.id = :id")
     Optional<Room> findByIdWithLock(@Param("id") Integer id);

@@ -102,6 +102,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/complexes/**", "/api/rooms/**", "/api/facilities/**", "/api/timetables/**", "/api/schedule-occurrences/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/bookings").hasRole("PROFESSOR")
                         .requestMatchers(HttpMethod.POST, "/api/classes/**").hasAnyRole("PROFESSOR", "ADMIN")
+                        .requestMatchers("/api/analytics/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 );
 
