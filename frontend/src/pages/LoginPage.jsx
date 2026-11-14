@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, Navigate } from 'react-router'
 import { useAuth } from '../auth/AuthContext.jsx'
+import { toLoginEmail } from '../utils/login.js'
 import Alert from '../components/Alert.jsx'
 import Loading from '../components/Loading.jsx'
 
@@ -37,7 +38,7 @@ export default function LoginPage() {
 
     setSubmitting(true)
     try {
-      const loggedUser = await login(email.trim(), password)
+      const loggedUser = await login(toLoginEmail(email), password)
       if (loggedUser.role === 'ADMIN') {
         navigate('/admin/timetables', { replace: true })
       } else {
@@ -90,15 +91,16 @@ export default function LoginPage() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-              Email Address
+              Email or username
             </label>
             <input
               id="email"
-              type="email"
+              type="text"
+              autoComplete="username"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="e.g. aturing@classsync.edu"
+              placeholder="e.g. aturing or aturing@classsync.edu"
               className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
               disabled={submitting}
             />
@@ -156,6 +158,9 @@ export default function LoginPage() {
               <span className="font-medium text-gray-400">PROFESSOR</span>
             </div>
           </div>
+          <p className="text-xs text-gray-500 mt-3 italic">
+            Tip: you can type just the username, e.g. admin.
+          </p>
         </div>
       </div>
     </div>

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { addDays } from 'date-fns'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { apiGetComplexes, apiGetComplexRooms, apiGetOccurrences, apiCancelClass } from '../../api/endpoints.js'
-import { toApiDate, parseApiDate, toHHmm } from '../../utils/dates.js'
+import { toApiDate, parseApiDate, toHHmm, hasStarted } from '../../utils/dates.js'
 import OccupancyGrid from '../../components/OccupancyGrid.jsx'
 import Alert from '../../components/Alert.jsx'
 import Loading from '../../components/Loading.jsx'
@@ -172,14 +172,25 @@ export default function OccupancyPage() {
                 <p className="text-gray-800">{activeOccurrence.eventType}</p>
               </div>
             </div>
-            <div className="pt-4 border-t border-gray-200 flex justify-end gap-3">
-              <button type="button" onClick={() => setIsDetailsOpen(false)} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
-                Close
-              </button>
-              <button type="button" onClick={() => setIsConfirmOpen(true)} className="px-4 py-2 text-sm font-medium text-white bg-rose-600 hover:bg-rose-700 rounded-md">
-                Cancel class
-              </button>
-            </div>
+            {hasStarted(activeOccurrence.scheduleDate, activeOccurrence.startTime) ? (
+              <div className="pt-4 border-t border-gray-200 flex items-center justify-between gap-3">
+                <span className="text-xs text-gray-500 italic">
+                  This class has already started, so it can't be cancelled or rescheduled.
+                </span>
+                <button type="button" onClick={() => setIsDetailsOpen(false)} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+                  Close
+                </button>
+              </div>
+            ) : (
+              <div className="pt-4 border-t border-gray-200 flex justify-end gap-3">
+                <button type="button" onClick={() => setIsDetailsOpen(false)} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+                  Close
+                </button>
+                <button type="button" onClick={() => setIsConfirmOpen(true)} className="px-4 py-2 text-sm font-medium text-white bg-rose-600 hover:bg-rose-700 rounded-md">
+                  Cancel class
+                </button>
+              </div>
+            )}
           </div>
         </Modal>
       )}

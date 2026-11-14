@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams, Link } from 'react-router'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { apiGetOccurrences, apiCancelClass } from '../../api/endpoints.js'
-import { weekRange, toApiDate, toHHmm, parseApiDate } from '../../utils/dates.js'
+import { weekRange, toApiDate, toHHmm, parseApiDate, hasStarted } from '../../utils/dates.js'
 import WeekNavigator from '../../components/WeekNavigator.jsx'
 import WeekCalendar from '../../components/WeekCalendar.jsx'
 import Modal from '../../components/Modal.jsx'
@@ -201,24 +201,30 @@ export default function MyWeekPage() {
               </div>
             )}
 
-            {/* Actions: only SCHEDULED classes can be cancelled or rescheduled */}
+            {/* Actions: only SCHEDULED classes that have not started can be cancelled or rescheduled */}
             {selectedOccurrence.status === 'SCHEDULED' ? (
-              <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
-                <button
-                  type="button"
-                  onClick={() => setShowCancelConfirm(true)}
-                  className="px-3 py-1.5 text-sm font-medium text-rose-700 bg-rose-50 border border-rose-200 rounded-md hover:bg-rose-100 transition-colors"
-                >
-                  Cancel class
-                </button>
-                <button
-                  type="button"
-                  onClick={handleReschedule}
-                  className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors"
-                >
-                  Reschedule
-                </button>
-              </div>
+              hasStarted(selectedOccurrence.scheduleDate, selectedOccurrence.startTime) ? (
+                <div className="text-xs text-gray-500 italic pt-3 border-t border-gray-100">
+                  This class has already started, so it can't be cancelled or rescheduled.
+                </div>
+              ) : (
+                <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+                  <button
+                    type="button"
+                    onClick={() => setShowCancelConfirm(true)}
+                    className="px-3 py-1.5 text-sm font-medium text-rose-700 bg-rose-50 border border-rose-200 rounded-md hover:bg-rose-100 transition-colors"
+                  >
+                    Cancel class
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleReschedule}
+                    className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors"
+                  >
+                    Reschedule
+                  </button>
+                </div>
+              )
             ) : (
               <div className="text-xs text-gray-400 italic pt-2">
                 This class is {selectedOccurrence.status.toLowerCase()} and cannot be modified.

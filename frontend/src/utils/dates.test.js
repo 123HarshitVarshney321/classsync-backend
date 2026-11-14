@@ -9,6 +9,7 @@ import {
   overlaps,
   blockPosition,
   timeOfDayPercent,
+  hasStarted,
 } from './dates.js'
 
 describe('dates utils', () => {
@@ -130,6 +131,26 @@ describe('dates utils', () => {
     it('returns null for 20:00', () => {
       expect(timeOfDayPercent('20:00')).toBeNull()
       expect(timeOfDayPercent(new Date(2026, 10, 14, 20, 0))).toBeNull()
+    })
+  })
+
+  describe('hasStarted', () => {
+    const fixedNow = new Date(2026, 10, 14, 12, 0, 0) // 14 Nov 2026, 12:00:00
+
+    it('returns true for a class yesterday', () => {
+      expect(hasStarted('2026-11-13', '10:00', fixedNow)).toBe(true)
+    })
+
+    it('returns false for a class tomorrow', () => {
+      expect(hasStarted('2026-11-15', '10:00', fixedNow)).toBe(false)
+    })
+
+    it('returns true for today at a time 1 minute ago', () => {
+      expect(hasStarted('2026-11-14', '11:59', fixedNow)).toBe(true)
+    })
+
+    it('returns false for today at a time in the future', () => {
+      expect(hasStarted('2026-11-14', '12:01', fixedNow)).toBe(false)
     })
   })
 })

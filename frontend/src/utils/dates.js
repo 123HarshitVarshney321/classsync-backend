@@ -92,3 +92,12 @@ export function timeOfDayPercent(date, dayStart = 480, dayEnd = 1200) {
   }
   return ((minutes - dayStart) / (dayEnd - dayStart)) * 100
 }
+
+export function hasStarted(scheduleDate, startTime, now = new Date()) {
+  if (!scheduleDate || !startTime) return false
+  const base = typeof scheduleDate === 'string' ? parseApiDate(scheduleDate) : new Date(scheduleDate)
+  if (!base || isNaN(base.getTime())) return false
+  const [h, m] = toHHmm(startTime).split(':').map(Number)
+  const classStart = new Date(base.getFullYear(), base.getMonth(), base.getDate(), h || 0, m || 0, 0, 0)
+  return classStart.getTime() <= (now instanceof Date ? now.getTime() : new Date(now).getTime())
+}
