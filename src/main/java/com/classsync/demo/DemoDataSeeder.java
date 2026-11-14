@@ -24,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -244,7 +245,13 @@ public class DemoDataSeeder {
             }
 
             ScheduleOccurrence occ = findOccurrence(date, prof.getId(), c.courseCode(), c.startTime());
-            classScheduleService.cancelOccurrence(occ.getId(), profEmail);
+            if (!LocalDateTime.of(occ.getScheduleDate(), occ.getStartTime()).isAfter(LocalDateTime.now(clock))) {
+                // Historical record: the app no longer allows cancelling classes that have started.
+                occ.setStatus(ScheduleStatus.CANCELLED);
+                scheduleOccurrenceRepository.save(occ);
+            } else {
+                classScheduleService.cancelOccurrence(occ.getId(), profEmail);
+            }
         }
 
         // 2. Reschedules R1 - R3

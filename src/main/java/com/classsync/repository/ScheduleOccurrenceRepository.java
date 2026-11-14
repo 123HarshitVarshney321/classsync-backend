@@ -217,4 +217,30 @@ public interface ScheduleOccurrenceRepository extends JpaRepository<ScheduleOccu
             @Param("versionId") Integer versionId,
             @Param("effectiveFrom") LocalDate effectiveFrom
     );
+
+    @Query("""
+        SELECT o FROM ScheduleOccurrence o
+        WHERE o.room.id = :roomId
+          AND o.status = com.classsync.entity.ScheduleStatus.SCHEDULED
+          AND (o.scheduleDate > :today OR (o.scheduleDate = :today AND o.startTime > :nowTime))
+        ORDER BY o.scheduleDate ASC, o.startTime ASC
+    """)
+    List<ScheduleOccurrence> findUpcomingInRoom(
+            @Param("roomId") Integer roomId,
+            @Param("today") LocalDate today,
+            @Param("nowTime") java.time.LocalTime nowTime
+    );
+
+    @Query("""
+        SELECT o FROM ScheduleOccurrence o
+        WHERE o.room.complex.id = :complexId
+          AND o.status = com.classsync.entity.ScheduleStatus.SCHEDULED
+          AND (o.scheduleDate > :today OR (o.scheduleDate = :today AND o.startTime > :nowTime))
+        ORDER BY o.scheduleDate ASC, o.startTime ASC
+    """)
+    List<ScheduleOccurrence> findUpcomingInComplex(
+            @Param("complexId") Integer complexId,
+            @Param("today") LocalDate today,
+            @Param("nowTime") java.time.LocalTime nowTime
+    );
 }

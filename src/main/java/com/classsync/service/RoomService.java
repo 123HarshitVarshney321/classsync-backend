@@ -10,15 +10,20 @@ import com.classsync.dto.room.UpdateRoomRequest;
 import com.classsync.entity.Complex;
 import com.classsync.entity.Facility;
 import com.classsync.entity.Room;
+import com.classsync.entity.ScheduleOccurrence;
 import com.classsync.exception.BadRequestException;
 import com.classsync.exception.DuplicateResourceException;
 import com.classsync.exception.ResourceNotFoundException;
 import com.classsync.repository.ComplexRepository;
 import com.classsync.repository.FacilityRepository;
 import com.classsync.repository.RoomRepository;
+import com.classsync.repository.ScheduleOccurrenceRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
+import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
@@ -30,13 +35,19 @@ public class RoomService {
     private final RoomRepository roomRepository;
     private final ComplexRepository complexRepository;
     private final FacilityRepository facilityRepository;
+    private final ScheduleOccurrenceRepository scheduleOccurrenceRepository;
+    private final Clock clock;
 
     public RoomService(RoomRepository roomRepository,
                        ComplexRepository complexRepository,
-                       FacilityRepository facilityRepository) {
+                       FacilityRepository facilityRepository,
+                       ScheduleOccurrenceRepository scheduleOccurrenceRepository,
+                       Clock clock) {
         this.roomRepository = roomRepository;
         this.complexRepository = complexRepository;
         this.facilityRepository = facilityRepository;
+        this.scheduleOccurrenceRepository = scheduleOccurrenceRepository;
+        this.clock = clock;
     }
 
     @Transactional(readOnly = true)
@@ -127,6 +138,20 @@ public class RoomService {
     public RoomSummaryResponse updateRoomStatus(Integer id, StatusUpdateRequest request) {
         Room room = roomRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Room not found with id: " + id));
+
+        if (Boolean.FALSE.equals(request.active())) {
+            LocalDate today = LocalDate.now(clock);
+            LocalTime nowTime = LocalTime.now(clock);
+            List<ScheduleOccurrence> upcoming = scheduleOccurrenceRepository.findUpcomingInRoom(id, today, nowTime);
+            if (!upcoming.isEmpty()) {
+                LocalDate nextDate = upcoming.get(0).getScheduleDate();
+                throw new DuplicateResourceException(
+                        "Cannot deactivate room " + room.getRoomNumber() + ": it has " + upcoming.size() +
+                        " upcoming scheduled class(es), the next on " + nextDate +
+                        ". Cancel or reschedule them, or move this room's classes in a new timetable version, first."
+                );
+            }
+        }
 
         room.setActive(request.active());
         return toSummaryResponse(room);

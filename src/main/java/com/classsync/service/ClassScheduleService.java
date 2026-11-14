@@ -59,6 +59,10 @@ public class ClassScheduleService {
             throw new AccessDeniedException("Professors can only cancel their own classes");
         }
 
+        if (!LocalDateTime.of(occurrence.getScheduleDate(), occurrence.getStartTime()).isAfter(LocalDateTime.now(clock))) {
+            throw new BadRequestException("Cannot cancel a class that has already started");
+        }
+
         // 4. Update status to CANCELLED without modifying other fields
         occurrence.setStatus(ScheduleStatus.CANCELLED);
         ScheduleOccurrence saved = scheduleOccurrenceRepository.save(occurrence);
@@ -96,6 +100,10 @@ public class ClassScheduleService {
         // 5. Run the authorization check (existing 403 behavior)
         if (caller.getRole() == UserRole.PROFESSOR && !original.getProfessor().getId().equals(caller.getId())) {
             throw new AccessDeniedException("Professors can only reschedule their own classes");
+        }
+
+        if (!LocalDateTime.of(original.getScheduleDate(), original.getStartTime()).isAfter(LocalDateTime.now(clock))) {
+            throw new BadRequestException("Cannot reschedule a class that has already started");
         }
 
         // 6. If date, start, end and room all equal the original's, return 400

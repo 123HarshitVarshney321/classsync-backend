@@ -1094,4 +1094,63 @@ class ClassScheduleIntegrationTests {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message", is("Cannot reschedule a class into the past")));
     }
+
+    // =========================================================================
+    // Fix A: Classes that have started are locked
+    // =========================================================================
+
+    @Test
+    @DisplayName("FA1. Cancel a SCHEDULED class dated 2026-09-30 returns 400")
+    @WithMockUser(username = "aturing@classsync.edu", roles = {"PROFESSOR"})
+    void cancelPastClassReturns400() throws Exception {
+        Room room1 = roomRepository.findById(1).orElseThrow();
+        User turing = userRepository.findByEmail("aturing@classsync.edu").orElseThrow();
+        ScheduleOccurrence occ = createOccurrence(room1, turing, LocalDate.of(2026, 9, 30), LocalTime.of(10, 0), LocalTime.of(11, 0), ScheduleStatus.SCHEDULED);
+
+        mockMvc.perform(post("/api/classes/" + occ.getId() + "/cancel"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message", is("Cannot cancel a class that has already started")));
+    }
+
+    @Test
+    @DisplayName("FA2. Reschedule a SCHEDULED class dated 2026-09-30 to a future slot returns 400")
+    @WithMockUser(username = "aturing@classsync.edu", roles = {"PROFESSOR"})
+    void reschedulePastClassReturns400() throws Exception {
+        Room room1 = roomRepository.findById(1).orElseThrow();
+        User turing = userRepository.findByEmail("aturing@classsync.edu").orElseThrow();
+        ScheduleOccurrence occ = createOccurrence(room1, turing, LocalDate.of(2026, 9, 30), LocalTime.of(10, 0), LocalTime.of(11, 0), ScheduleStatus.SCHEDULED);
+
+        RescheduleRequest futureReq = new RescheduleRequest(LocalDate.of(2026, 12, 1), LocalTime.of(14, 0), LocalTime.of(15, 0), 2);
+        mockMvc.perform(post("/api/classes/" + occ.getId() + "/reschedule")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(futureReq)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message", is("Cannot reschedule a class that has already started")));
+    }
+
+    @Test
+    @DisplayName("FA3. Cancel a class on 2026-10-01 from 08:00 to 09:30 (started at 08:00) returns 400")
+    @WithMockUser(username = "aturing@classsync.edu", roles = {"PROFESSOR"})
+    void cancelClassStartedEarlierTodayReturns400() throws Exception {
+        Room room1 = roomRepository.findById(1).orElseThrow();
+        User turing = userRepository.findByEmail("aturing@classsync.edu").orElseThrow();
+        ScheduleOccurrence occ = createOccurrence(room1, turing, LocalDate.of(2026, 10, 1), LocalTime.of(8, 0), LocalTime.of(9, 30), ScheduleStatus.SCHEDULED);
+
+        mockMvc.perform(post("/api/classes/" + occ.getId() + "/cancel"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message", is("Cannot cancel a class that has already started")));
+    }
+
+    @Test
+    @DisplayName("FA4. Cancel a class on 2026-10-01 at 10:00 (not started yet) returns 200")
+    @WithMockUser(username = "aturing@classsync.edu", roles = {"PROFESSOR"})
+    void cancelClassStartingLaterTodayReturns200() throws Exception {
+        Room room1 = roomRepository.findById(1).orElseThrow();
+        User turing = userRepository.findByEmail("aturing@classsync.edu").orElseThrow();
+        ScheduleOccurrence occ = createOccurrence(room1, turing, LocalDate.of(2026, 10, 1), LocalTime.of(10, 0), LocalTime.of(11, 0), ScheduleStatus.SCHEDULED);
+
+        mockMvc.perform(post("/api/classes/" + occ.getId() + "/cancel"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status", is("CANCELLED")));
+    }
 }
