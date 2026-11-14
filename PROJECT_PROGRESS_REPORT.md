@@ -6,7 +6,7 @@
 **Institution:** Academic Project Submission  
 **Technology Stack:** Java 21 LTS, Spring Boot 3.4.3, Spring Security 6, Spring Data JPA, Hibernate 6, MySQL 8.0 (InnoDB), Flyway Migration, JUnit 5, MockMvc, React 19, Vite 8, React Router 8, Tailwind CSS 4, Vitest  
 **Repository:** [GitHub - classsync-backend](https://github.com/123HarshitVarshney321/classsync-backend.git)  
-**Status:** Completed Full-Stack System (Milestones 1–11 + Hardening 11H + React Frontend F1 + Demo Data S1 + Analytics O7), 240 backend tests & 31 frontend unit tests passing (100% Success Rate), November 14, 2026
+**Status:** Completed Full-Stack System (Milestones 1–11 + Hardening 11H + React Frontend F1 + Demo Data S1 + Analytics O7 + Fixes FIX1), 249 backend tests & 39 frontend unit tests passing (100% Success Rate), November 14, 2026
 
 ---
 
@@ -23,8 +23,9 @@
 10. [Key Mathematical & Algorithmic Innovations](#10-key-mathematical--algorithmic-innovations)
 11. [API Specification & Security Matrix](#11-api-specification--security-matrix)
 12. [Testing Strategy & Quality Assurance](#12-testing-strategy--quality-assurance)
-13. [Future Work](#13-future-work)
-14. [Conclusion](#14-conclusion)
+13. [Fixes from User Testing (FIX1)](#13-fixes-from-user-testing-fix1)
+14. [Future Work](#14-future-work)
+15. [Conclusion](#15-conclusion)
 
 ---
 
@@ -281,7 +282,7 @@ To eliminate deadlocks during concurrent multi-row operations, transactions acqu
 
 ## 12. Testing Strategy & Quality Assurance
 
-ClassSync is validated by **240 backend tests** and **31 unit tests** in the frontend with a **100% pass rate**:
+ClassSync is validated by **249 backend tests** and **39 unit tests** in the frontend with a **100% pass rate**:
 
 ### Backend Test Results (Maven Surefire):
 ```text
@@ -291,7 +292,8 @@ Tests run: 1, Failures: 0, Errors: 0, Skipped: 0 -- in com.classsync.concurrency
 Tests run: 7, Failures: 0, Errors: 0, Skipped: 0 -- in com.classsync.controller.AnalyticsIntegrationTests
 Tests run: 19, Failures: 0, Errors: 0, Skipped: 0 -- in com.classsync.controller.AvailabilityIntegrationTests
 Tests run: 26, Failures: 0, Errors: 0, Skipped: 0 -- in com.classsync.controller.BookingIntegrationTests
-Tests run: 37, Failures: 0, Errors: 0, Skipped: 0 -- in com.classsync.controller.ClassScheduleIntegrationTests
+Tests run: 41, Failures: 0, Errors: 0, Skipped: 0 -- in com.classsync.controller.ClassScheduleIntegrationTests
+Tests run: 5, Failures: 0, Errors: 0, Skipped: 0 -- in com.classsync.controller.DeactivationGuardIntegrationTests
 Tests run: 19, Failures: 0, Errors: 0, Skipped: 0 -- in com.classsync.controller.DomainIntegrationTests
 Tests run: 1, Failures: 0, Errors: 0, Skipped: 0 -- in com.classsync.controller.HealthControllerTest
 Tests run: 36, Failures: 0, Errors: 0, Skipped: 0 -- in com.classsync.controller.RecommendationIntegrationTests
@@ -303,21 +305,54 @@ Tests run: 3, Failures: 0, Errors: 0, Skipped: 0 -- in com.classsync.repository.
 Tests run: 22, Failures: 0, Errors: 0, Skipped: 0 -- in com.classsync.security.SecurityAuthenticationTests
 Tests run: 10, Failures: 0, Errors: 0, Skipped: 0 -- in com.classsync.service.UtilizationCalculatorTest
 -------------------------------------------------------------------------------------------------------
-Total Backend Tests Run: 240, Failures: 0, Errors: 0, Skipped: 0 (BUILD SUCCESS)
+Total Backend Tests Run: 249, Failures: 0, Errors: 0, Skipped: 0 (BUILD SUCCESS)
 ```
 
 ### Frontend Test Results (Vitest):
 ```text
 ✓ src/api/client.test.js (8 tests)
 ✓ src/utils/heatmap.test.js (6 tests)
-✓ src/utils/dates.test.js (17 tests)
+✓ src/utils/dates.test.js (21 tests)
+✓ src/utils/login.test.js (4 tests)
 -------------------------------------------------------------------------------------------------------
-Total Frontend Tests Run: 31, Failures: 0, Skipped: 0 (3 test files passed)
+Total Frontend Tests Run: 39, Failures: 0, Skipped: 0 (4 test files passed)
 ```
 
 ---
 
-## 13. Future Work
+## 13. Fixes from User Testing (FIX1)
+
+During user acceptance and end-to-end testing, three operational issues were identified and resolved on branch `fix/testing-feedback`:
+
+### 13.1 Fix A: Locking Started Classes Against Cancellation and Rescheduling
+- **Issue**: Classes scheduled in the past or classes that had already commenced could still be cancelled or rescheduled via the API and UI.
+- **Cause**: Existing validation only checked whether the *target* date/time for rescheduling was in the future; no start-time check existed for the *original* class being cancelled or rescheduled.
+- **Resolution**:
+  - **Backend (`ClassScheduleService`)**: Injected the application `Clock` and enforced a strict temporal check: `LocalDateTime.of(scheduleDate, startTime).isAfter(now)`. If the class has started (`!isAfter(now)`), operations throw `BadRequestException` (HTTP 400) with messages:
+    - `"Cannot cancel a class that has already started"`
+    - `"Cannot reschedule a class that has already started"`
+  - **Demo Seeding (`DemoDataSeeder`)**: Historical past cancellations (C1–C4) are preserved directly via `scheduleOccurrenceRepository.save()` with the comment `// Historical record: the app no longer allows cancelling classes that have started.` while future cancellations (C5–C6) continue using `classScheduleService.cancelOccurrence()`.
+  - **Frontend (`MyWeekPage.jsx`, `OccupancyPage.jsx`)**: The modal dialog inspects whether a class has started via `hasStarted(scheduleDate, startTime, now)`. For started classes, the Cancel and Reschedule buttons are replaced with a clear grey informational note: *"This class has already started, so it can't be cancelled or rescheduled."*
+
+### 13.2 Fix B: Blocking Deactivation of Rooms and Complexes with Upcoming Classes
+- **Issue**: Deactivating an active room or campus complex orphaned future classes that were already scheduled, removing them from booking search and campus occupancy views without explicit notice.
+- **Cause**: `RoomService.updateRoomStatus()` and `ComplexService.updateComplexStatus()` modified the `active` flag without querying future commitments. Auto-cancelling was explicitly rejected as it would silently erase faculty bookings without audit trails or easy restoration.
+- **Resolution**:
+  - **Repository (`ScheduleOccurrenceRepository`)**: Added optimized JPQL queries `findUpcomingInRoom(roomId, today, nowTime)` and `findUpcomingInComplex(complexId, today, nowTime)` querying `status = 'SCHEDULED'` and `(scheduleDate > :today OR (scheduleDate = :today AND startTime > :nowTime))`.
+  - **Service Guards (`RoomService`, `ComplexService`)**: When setting `active = false`, services check for upcoming occurrences. If any exist, they throw `DuplicateResourceException` (HTTP 409 Conflict) with actionable diagnostic messages:
+    - Room: `"Cannot deactivate room <roomNumber>: it has <n> upcoming scheduled class(es), the next on <yyyy-MM-dd>. Cancel or reschedule them, or move this room's classes in a new timetable version, first."`
+    - Complex: `"Cannot deactivate complex <name>: its rooms have <n> upcoming scheduled class(es), the next on <yyyy-MM-dd>. Cancel or reschedule them, or move these classes in a new timetable version, first."`
+
+### 13.3 Fix C: Streamlined Login Supporting Username or Institutional Email
+- **Issue**: Users attempting to log in with short usernames (e.g., `admin`, `aturing`) encountered browser HTML5 validation errors because the form input was strictly `type="email"`.
+- **Cause**: The login input strictly enforced browser email format checking, preventing natural username-based entry.
+- **Resolution**:
+  - **Frontend (`LoginPage.jsx`, `utils/login.js`)**: Updated the login input to `type="text"`, `autoComplete="username"`, with placeholder `"admin or admin@classsync.edu"`.
+  - **Email Normalization (`toLoginEmail`)**: Added utility function `toLoginEmail(input)`: if the entered identifier does not contain `@`, it automatically appends `@classsync.edu`. Validated by unit tests in `login.test.js`.
+
+---
+
+## 14. Future Work
 
 With all primary objectives (O1–O7) and full-stack interfaces delivered, the following secondary areas remain available for future exploration:
 1. **Redis Caching**: Caching frequently read static reference data (Complexes, Rooms, Facilities) with eviction on administrative updates (not required at current campus scale).
@@ -327,9 +362,9 @@ With all primary objectives (O1–O7) and full-stack interfaces delivered, the f
 
 ---
 
-## 14. Conclusion
+## 15. Conclusion
 
-**ClassSync** is an end-to-end, fully verified academic scheduling and room allocation platform. All seven core objectives—physical campus infrastructure management (O1), timetable blueprint versioning (O2), calendar occurrence projection (O3), advisory availability search and transactional booking (O4), non-destructive cancellation and rescheduling (O5), explainable 5-factor recommendations (O6), and utilization analytics (O7)—are operational across the Spring Boot backend and React frontend. The application is validated by **240 backend tests** and **31 frontend unit tests** with a 100% pass rate.
+**ClassSync** is an end-to-end, fully verified academic scheduling and room allocation platform. All seven core objectives—physical campus infrastructure management (O1), timetable blueprint versioning (O2), calendar occurrence projection (O3), advisory availability search and transactional booking (O4), non-destructive cancellation and rescheduling (O5), explainable 5-factor recommendations (O6), and utilization analytics (O7)—are operational across the Spring Boot backend and React frontend. The application is validated by **249 backend tests** and **39 frontend unit tests** with a 100% pass rate.
 
 ---
-*Report updated on November 14, 2026. Branch `feature/final-polish`.*
+*Report updated on November 14, 2026. Branch `fix/testing-feedback`.*

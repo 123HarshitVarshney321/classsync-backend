@@ -16,7 +16,7 @@ The browser will automatically open [http://localhost:5173](http://localhost:517
 
 ## 2. Administrator Walkthrough
 
-Log in as **Administrator** using the Quick Login card or credentials `admin@classsync.edu` / `Admin@123`.
+Log in as **Administrator** using the Quick Login card or by typing `admin` in the Email or username field (typing `admin` without `@classsync.edu` works directly) with password `password123` (or `admin@classsync.edu` / `Admin@123`).
 
 ### A. Timetables & Version Management
 1. Click **Timetables** in the top navigation bar.
@@ -57,6 +57,13 @@ Log in as **Administrator** using the Quick Login card or credentials `admin@cla
 5. **Expected Result**:
    * Room **MB-G05** appears with an `INACTIVE` badge.
    * Click **Activate** / **Deactivate** to toggle status dynamically with confirmation.
+6. **Deactivation Guard Demo**:
+   * Switch to the **Lecture Hall Complex (LHC)** complex.
+   * Click **Deactivate** next to **LHC-1** (which has upcoming scheduled classes), and confirm in the dialog.
+   * **Expected Result**: The action is blocked, and an alert banner shows: *"Cannot deactivate room LHC-1: it has upcoming scheduled class(es)..."*
+   * Switch to the **Science & Engineering Complex (SEC)** complex.
+   * Click **Add room**, create room `SEC-104` (Type: `CLASSROOM`, Capacity: `40`), and save.
+   * Click **Deactivate** on the newly created `SEC-104` and confirm: the action succeeds and `SEC-104` transitions to `INACTIVE`.
 
 ### F. Campus Utilization Analytics (O7)
 1. Click **Analytics** in the top navigation bar.
@@ -94,10 +101,14 @@ Log out from the Admin account and test professor roles using password `password
      * **CS499 (Research Seminar, 15:00–16:30)** remains **SCHEDULED** in room **MB-201**.
 
 ### C. Prof. Alan Turing (`aturing@classsync.edu`)
-1. Log in and navigate to **My Week** for **Week +1**.
+1. Log in (typing `aturing` works directly) and navigate to **My Week** for **Week +1**.
 2. **Expected Schedule Highlights**:
    * **Thursday**:
      * Extra booking **CS201 (Doubt-Clearing Session, 15:00–16:00)** appears in **SEC-101** (Status: `SCHEDULED`).
+3. **Past Class Lock Demo**:
+   * Use the week navigator (`< Prev`) to move to the previous week (e.g. Week -1).
+   * Click any past class card on the calendar to open its class details modal.
+   * **Expected Result**: Instead of Cancel or Reschedule buttons, the modal displays a grey note: *"This class has already started, so it can't be cancelled or rescheduled."*
 
 ### D. Advisory Room Search & Recommendation Engine
 1. From any professor account, click **Find a Room**.

@@ -32,6 +32,14 @@ Controller  -->  Service  -->  Repository  -->  MySQL 8 (InnoDB)
 
 ---
 
+## Core Business Rules
+
+- **Past Classes**: Past classes cannot be booked, cancelled, or rescheduled. Once a class has started (`scheduleDate < today` or `scheduleDate == today && startTime <= now`), it is locked against cancellation and rescheduling.
+- **Campus Deactivation**: Rooms and complexes with upcoming scheduled classes cannot be deactivated. All upcoming classes must be cancelled or rescheduled first.
+- **User Authentication**: Users can log in using either their full email address (`admin@classsync.edu`) or their username (`admin`).
+
+---
+
 ## Database Schema (10 Core Tables)
 
 1. `users`: Professors and Administrators with session-based authentication and role enforcement (`ROLE_ADMIN`, `ROLE_PROFESSOR`).
@@ -469,7 +477,7 @@ Because lock queries select single tables and follow this uniform order, circula
 
 ## Testing & Quality Assurance
 
-ClassSync is validated by **240 backend tests** and **31 unit tests** in the frontend with a **100% pass rate**. Backend tests execute exclusively against an isolated database `classsync_test` (catalog verified at test startup, overridable via `TEST_DB_URL`). The test clock is locked to `2026-10-01` via `app.clock.fixed-date` so hardcoded test dates remain valid indefinitely. The developer database `classsync` is never touched during test execution.
+ClassSync is validated by **249 backend tests** and **39 unit tests** in the frontend with a **100% pass rate**. Backend tests execute exclusively against an isolated database `classsync_test` (catalog verified at test startup, overridable via `TEST_DB_URL`). The test clock is locked to `2026-10-01` via `app.clock.fixed-date` so hardcoded test dates remain valid indefinitely. The developer database `classsync` is never touched during test execution.
 
 ```text
 Results from Surefire Reports:
@@ -479,7 +487,8 @@ Results from Surefire Reports:
 - AnalyticsIntegrationTests                    :   7 /   7 PASS
 - AvailabilityIntegrationTests                 :  19 /  19 PASS
 - BookingIntegrationTests                      :  26 /  26 PASS
-- ClassScheduleIntegrationTests                :  37 /  37 PASS
+- ClassScheduleIntegrationTests                :  41 /  41 PASS
+- DeactivationGuardIntegrationTests            :   5 /   5 PASS
 - DomainIntegrationTests                       :  19 /  19 PASS
 - HealthControllerTest                         :   1 /   1 PASS
 - RecommendationIntegrationTests               :  36 /  36 PASS
@@ -491,15 +500,16 @@ Results from Surefire Reports:
 - SecurityAuthenticationTests                  :  22 /  22 PASS
 - UtilizationCalculatorTest                    :  10 /  10 PASS
 -------------------------------------------------------------------------------------------------------
-Total Backend Tests Run: 240, Failures: 0, Errors: 0, Skipped: 0
+Total Backend Tests Run: 249, Failures: 0, Errors: 0, Skipped: 0
 Build Status: BUILD SUCCESS
 
 Results from Vitest Reports:
 - client.test.js                               :   8 /   8 PASS
 - heatmap.test.js                              :   6 /   6 PASS
-- dates.test.js                                :  17 /  17 PASS
+- dates.test.js                                :  21 /  21 PASS
+- login.test.js                                :   4 /   4 PASS
 -------------------------------------------------------------------------------------------------------
-Total Frontend Tests Run: 31, Failures: 0, Skipped: 0 (3 test files passed)
+Total Frontend Tests Run: 39, Failures: 0, Skipped: 0 (4 test files passed)
 ```
 
 Run the complete backend and frontend test suites:

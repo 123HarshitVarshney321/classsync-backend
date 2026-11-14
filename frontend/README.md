@@ -58,13 +58,13 @@ The application will be accessible at:
 
 All seed demo accounts use the password: `password123`
 
-| Role | Email | Accessible Screens |
+| Role | Username / Email | Accessible Screens |
 |---|---|---|
-| **ADMIN** | `admin@classsync.edu` | Timetables, Generate, Campus, Occupancy, Analytics |
-| **PROFESSOR** | `aturing@classsync.edu` | My Week, Find a Room, Occupancy |
-| **PROFESSOR** | `alovelace@classsync.edu` | My Week, Find a Room, Occupancy |
+| **ADMIN** | `admin` (`admin@classsync.edu`) | Timetables, Generate, Campus, Occupancy, Analytics |
+| **PROFESSOR** | `aturing` (`aturing@classsync.edu`) | My Week, Find a Room, Occupancy |
+| **PROFESSOR** | `alovelace` (`alovelace@classsync.edu`) | My Week, Find a Room, Occupancy |
 
-Demo account quick-fill buttons are provided on the login page for convenience.
+> **Login Tip:** You can log in using either your full email address (e.g., `admin@classsync.edu`) or simply your username (e.g., `admin`, `aturing`). If no `@` is included, `@classsync.edu` is appended automatically. Demo account quick-fill buttons are also provided on the login page for convenience.
 
 ---
 
@@ -160,4 +160,6 @@ frontend/
       dates.test.js                   Unit tests for date & interval helpers
       heatmap.js                      Color calculation for utilization heatmap
       heatmap.test.js                 Unit tests for heatmap color logic
+      login.js                        Username-to-email normalization
+      login.test.js                   Unit tests for login input normalization
 ```
