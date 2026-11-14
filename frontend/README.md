@@ -45,13 +45,22 @@ The application will be accessible at:
 
 ---
 
+## Key Features & UI Capabilities
+
+- **Campus Utilization Analytics**: Dedicated Admin dashboard (`/admin/analytics`) showing overall utilization percentage, booked vs available hours, room-by-room breakdown with underused space badges, and an interactive peak-hours heatmap.
+- **Admin Cancel from Occupancy**: Administrators can click on any scheduled class in the Daily Occupancy grid (`/occupancy`) to view class details and cancel the class directly with immediate calendar refresh.
+- **Live "Now" Line**: In the professor's My Week view (`/my-week`), a 2 px red horizontal indicator line tracks the current time during the teaching day (08:00–20:00) in today's column.
+- **Keyboard Accessible Dialogs**: Pressing the `Escape` key cleanly closes all `Modal` popups and `ConfirmDialog` prompts (triggering Cancel only when enabled).
+
+---
+
 ## Demo Accounts
 
 All seed demo accounts use the password: `password123`
 
 | Role | Email | Accessible Screens |
 |---|---|---|
-| **ADMIN** | `admin@classsync.edu` | Timetables, Generate, Campus, Occupancy |
+| **ADMIN** | `admin@classsync.edu` | Timetables, Generate, Campus, Occupancy, Analytics |
 | **PROFESSOR** | `aturing@classsync.edu` | My Week, Find a Room, Occupancy |
 | **PROFESSOR** | `alovelace@classsync.edu` | My Week, Find a Room, Occupancy |
 
@@ -123,13 +132,14 @@ frontend/
     components/
       Navbar.jsx                      Top navigation bar with role links and logout
       Alert.jsx                       Accessible error and success message banners
-      Modal.jsx                       Modal dialog overlay
-      ConfirmDialog.jsx               Action confirmation dialog
+      Modal.jsx                       Modal dialog overlay (Escape closes)
+      ConfirmDialog.jsx               Action confirmation dialog (Escape cancels)
       Loading.jsx                     Loading indicator
       StatusBadge.jsx                 Color-coded status pills
       WeekNavigator.jsx               Monday–Sunday week selector controls
-      WeekCalendar.jsx                Professor calendar view (days × hours)
-      OccupancyGrid.jsx               Rooms × hours campus occupancy grid
+      WeekCalendar.jsx                Professor calendar view with live "now" line
+      OccupancyGrid.jsx               Rooms × hours campus occupancy grid with admin click-to-cancel
+      UtilizationHeatmap.jsx          Peak-hours room utilization heatmap table
     pages/
       LoginPage.jsx                   Sign in form with demo account helpers
       NotAllowedPage.jsx              403 Access Denied fallback
@@ -138,13 +148,16 @@ frontend/
         MyWeekPage.jsx                Weekly calendar, class cancellation, reschedule entry
         FindRoomPage.jsx              Ranked room recommendations, booking & move modes
       shared/
-        OccupancyPage.jsx             Campus-wide room occupancy matrix
+        OccupancyPage.jsx             Campus-wide room occupancy matrix & admin cancel flow
       admin/
         CampusPage.jsx                Complexes, rooms and facilities management
         TimetablesPage.jsx            Semester draft creation, activation, archiving
         VersionDetailPage.jsx         Master timetable weekly entries management
         GeneratePage.jsx              Calendar occurrence projection & conflict analysis
+        AnalyticsPage.jsx             Campus utilization metrics, room breakdown & heatmap
     utils/
       dates.js                        Time, interval overlaps, and grid position math
       dates.test.js                   Unit tests for date & interval helpers
+      heatmap.js                      Color calculation for utilization heatmap
+      heatmap.test.js                 Unit tests for heatmap color logic
 ```

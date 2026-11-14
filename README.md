@@ -42,8 +42,8 @@ Controller  -->  Service  -->  Repository  -->  MySQL 8 (InnoDB)
 6. `timetable_versions`: Version-controlled official timetable definitions with lifecycle states (`DRAFT` $\rightarrow$ `ACTIVE` $\rightarrow$ `ARCHIVED`).
 7. `timetable_entries`: Recurring weekly class slots with day of week checks (`1-7`) and half-open time checks (`start_time < end_time`).
 8. `schedule_occurrences`: Date-specific calendar occurrences with `status ENUM('SCHEDULED', 'CANCELLED', 'RESCHEDULED', 'SUPERSEDED')` and self-referential `rescheduled_from_id` (foreign key with `ON DELETE SET NULL`). The live calendar view queries `status = 'SCHEDULED'`.
-9. `notifications`: User notification queue for booking, cancellation, and reschedule events.
-10. `audit_logs`: Audit trail with JSON snapshots (`old_value`, `new_value`) for administrative accountability.
+9. `notifications`: Reserved for future work (not used by the application yet).
+10. `audit_logs`: Reserved for future work (not used by the application yet).
 
 ### Flyway Migrations
 - `V1__create_initial_schema.sql`: Creates all 10 core tables, check constraints, foreign keys, and performance indexes.
@@ -107,7 +107,7 @@ ClassSync includes a realistic, pre-validated demo dataset loaded via Java seede
 * **Class Occurrences**: 298 total occurrences generated across an 8-week window (week −3 to week +4):
   - **289 SCHEDULED** (282 official + 7 extra bookings)
   - **6 CANCELLED** (spread across past and future weeks)
-  - **3 RESCHEDULED** (with non-destructive audit pointers to replacements)
+  - **3 RESCHEDULED** (each linked from its replacement via `rescheduled_from_id`)
 
 ### Professor Accounts
 All professor accounts use password `password123`:
@@ -376,6 +376,61 @@ $$\text{Score} = 30 \times \text{CapacityFit} + 25 \times \text{LocationFit} + 2
 
 ---
 
+### 9. Utilization Analytics Engine (O7)
+
+| Method | Endpoint | Access | Description |
+|---|---|---|---|
+| `GET` | `/api/analytics/utilization` | `ROLE_ADMIN` | Calculate campus utilization metrics, underused rooms, and peak-hours heatmap |
+
+**Definitions:**
+- **Scope:** Working days (Monday–Friday), 08:00–20:00 (12-hour teaching day). Weekend classes are ignored.
+- **Available Hours:** $\text{working days in range} \times 12 \times \text{number of rooms}$.
+- **Booked Hours:** Total duration of `SCHEDULED` classes on working days within 08:00–20:00.
+- **Utilization %:** $\text{booked} \div \text{available} \times 100$ (rounded to 1 decimal).
+- **Underused Spaces:** A room is underused when its utilization is below half of the overall campus utilization ($\text{unroundedRoom} < \text{unroundedOverall} / 2$).
+- **Heatmap:** 5 weekdays $\times$ 12 hourly columns (08:00–19:00). Cell percent represents the share of rooms busy in that hour. Colors are relative to the busiest hour in the selection.
+
+**Sample Response (`GET /api/analytics/utilization?startDate=2026-10-19&endDate=2026-11-08`):**
+```json
+{
+  "startDate": "2026-10-19",
+  "endDate": "2026-11-08",
+  "complexId": null,
+  "dayStart": "08:00:00",
+  "dayEnd": "20:00:00",
+  "workingDays": ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"],
+  "underusedThresholdPercent": 2.1,
+  "summary": {
+    "roomCount": 17,
+    "workingDayCount": 15,
+    "availableHours": 3060.0,
+    "bookedHours": 129.5,
+    "utilizationPercent": 4.2,
+    "scheduledClasses": 104,
+    "extraClasses": 0,
+    "cancelledClasses": 4,
+    "rescheduledClasses": 0
+  },
+  "rooms": [
+    {
+      "roomId": 10,
+      "roomNumber": "SEC-202",
+      "complexName": "Science & Engineering Complex",
+      "roomType": "LECTURE_HALL",
+      "capacity": 120,
+      "classCount": 12,
+      "bookedHours": 18.0,
+      "availableHours": 180.0,
+      "utilizationPercent": 10.0,
+      "underused": false
+    }
+  ],
+  "heatmap": []
+}
+```
+
+---
+
 ## Key Mathematical & Algorithmic Innovations
 
 ### 1. Half-Open Interval Collision Formula
@@ -414,13 +469,14 @@ Because lock queries select single tables and follow this uniform order, circula
 
 ## Testing & Quality Assurance
 
-ClassSync is validated by **216 automated integration tests** with a **100% pass rate**. Tests execute exclusively against an isolated database `classsync_test` (catalog verified at test startup, overridable via `TEST_DB_URL`). The test clock is locked to `2026-10-01` via `app.clock.fixed-date` so hardcoded test dates remain valid indefinitely. The developer database `classsync` is never touched during test execution.
+ClassSync is validated by **240 automated integration tests** in the backend and **31 unit tests** in the frontend with a **100% pass rate**. Backend tests execute exclusively against an isolated database `classsync_test` (catalog verified at test startup, overridable via `TEST_DB_URL`). The test clock is locked to `2026-10-01` via `app.clock.fixed-date` so hardcoded test dates remain valid indefinitely. The developer database `classsync` is never touched during test execution.
 
 ```text
 Results from Surefire Reports:
 - ClassSyncApplicationTests                     :   1 /   1 PASS
 - TestDatabaseIsolationTest                     :   1 /   1 PASS
 - GenerationConcurrencyIntegrationTests         :   1 /   1 PASS
+- AnalyticsIntegrationTests                    :   7 /   7 PASS
 - AvailabilityIntegrationTests                 :  19 /  19 PASS
 - BookingIntegrationTests                      :  26 /  26 PASS
 - ClassScheduleIntegrationTests                :  37 /  37 PASS
@@ -429,17 +485,27 @@ Results from Surefire Reports:
 - RecommendationIntegrationTests               :  36 /  36 PASS
 - ScheduleOccurrenceIntegrationTests           :  27 /  27 PASS
 - TimetableIntegrationTests                    :  23 /  23 PASS
+- DemoDataSeederIntegrationTests               :   6 /   6 PASS
 - GlobalExceptionHandlerTest                   :   1 /   1 PASS
 - RepositoryIntegrationTests                   :   3 /   3 PASS
-- SecurityAuthenticationTests                  :  21 /  21 PASS
+- SecurityAuthenticationTests                  :  22 /  22 PASS
+- UtilizationCalculatorTest                    :  10 /  10 PASS
 -------------------------------------------------------------------------------------------------------
-Total Tests Run: 216, Failures: 0, Errors: 0, Skipped: 0
+Total Backend Tests Run: 240, Failures: 0, Errors: 0, Skipped: 0
 Build Status: BUILD SUCCESS
+
+Results from Vitest Reports:
+- client.test.js                               :   8 /   8 PASS
+- heatmap.test.js                              :   6 /   6 PASS
+- dates.test.js                                :  17 /  17 PASS
+-------------------------------------------------------------------------------------------------------
+Total Frontend Tests Run: 31, Failures: 0, Skipped: 0 (3 test files passed)
 ```
 
-Run the complete test suite:
+Run the complete backend and frontend test suites:
 ```bash
 mvn clean test
+cd frontend && npm test
 ```
 
 ---
@@ -447,6 +513,14 @@ mvn clean test
 ## Running the Frontend
 
 The React frontend lives in the [`frontend/`](frontend/README.md) directory.
+
+### Key UI Features
+- **Role-tailored dashboards**: Dedicated views for Professors (My Week, Find a Room, Daily Occupancy) and Administrators (Timetables, Generation, Campus, Occupancy, Analytics).
+- **Daily Occupancy**: Timeline view grouped by complex. Admins can cancel a class from the Occupancy grid with one click.
+- **My Week**: Weekly view featuring a dynamic red "now" line during the teaching day, with cancellation and rescheduling.
+- **Explainable Recommendations**: 5-factor mathematical score with clear rationale badges.
+- **Campus Analytics**: Summary cards, room breakdown table with underused space indicators, and peak-hours heatmap.
+- **Keyboard accessible**: Escape key closes all modals and confirmation dialogs cleanly.
 
 ### Quick Start
 1. Ensure the Spring Boot backend is running on `http://localhost:8080`:

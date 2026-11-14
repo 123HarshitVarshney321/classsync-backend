@@ -43,10 +43,11 @@ Log in as **Administrator** using the Quick Login card or credentials `admin@cla
    * An alert confirms future occurrences of `v1` superseded from next Monday onward.
 5. Click **Generate** and project `v2` for weeks +1 through +4 to reflect the updated curriculum.
 
-### D. Campus-Wide Live Occupancy Grid
+### D. Campus-Wide Live Occupancy Grid & Class Cancellation
 1. Click **Occupancy** in the top navigation bar.
 2. Select a busy weekday (e.g. Wednesday of Week +1).
 3. Observe the full matrix of classrooms, lecture halls, and laboratories grouped by complex (`SEC`, `HSS`, `LHC`, `MB`) showing occupied time blocks and professor assignments.
+4. **Admin Cancel from Occupancy**: Click any class block (e.g. `CS201` on Monday of Week +1). A details modal opens showing course, professor, room, date, and time. Click **Cancel class**, confirm in the dialog, and watch the block disappear cleanly with a success alert.
 
 ### E. Campus & Facilities Administration
 1. Click **Campus** in the top navigation bar.
@@ -54,8 +55,20 @@ Log in as **Administrator** using the Quick Login card or credentials `admin@cla
 3. Choose the **Main Building (MB)** complex.
 4. Tick the **Show inactive** checkbox in the top right.
 5. **Expected Result**:
-   * Room **MB-G05** appears with an `INACTIVE` badge and note "Under Renovation".
+   * Room **MB-G05** appears with an `INACTIVE` badge.
    * Click **Activate** / **Deactivate** to toggle status dynamically with confirmation.
+
+### F. Campus Utilization Analytics (O7)
+1. Click **Analytics** in the top navigation bar.
+2. The default selection loads the **last 3 full weeks** across all complexes.
+3. **Expected Results**:
+   * **Overall Utilization**: `4.2%`
+   * **Booked / Available Hours**: `129.5 / 3060.0 h`
+   * **Class Breakdown**: `104` scheduled classes, `0` extra classes, `4` cancelled, `0` rescheduled.
+   * **Underused Threshold**: Below `2.1%` (half of campus average).
+   * **Busiest Room**: `SEC-202` (18.0 h booked, `10.0%` utilization).
+   * **Underused Rooms**: Exactly `SEC-101` (`0.0%`) and `HSS-101` (`1.7%`) marked with amber **Underused** badges.
+   * **Peak Hours Heatmap**: Highlights peak time slots (e.g. Monday 09:00, Wednesday 10:00–12:00) with dynamic blue shading relative to the busiest hour.
 
 ---
 
@@ -65,7 +78,8 @@ Log out from the Admin account and test professor roles using password `password
 
 ### A. Prof. Ada Lovelace (`alovelace@classsync.edu`)
 1. Log in and navigate to **My Week** for **Week +1**.
-2. **Expected Schedule Highlights**:
+2. Notice the red horizontal **"now" line** across today's column if viewing during the teaching day (08:00–20:00).
+3. **Expected Schedule Highlights**:
    * **Thursday**:
      * Original **CS202** (Discrete Mathematics, 10:00–11:00) displays with status badge **Rescheduled**.
      * Extra tutorial **MA201 (Linear Algebra)** displays at **15:00–16:00** in room **HSS-101** (Status: `SCHEDULED`).
@@ -103,8 +117,8 @@ Log out from the Admin account and test professor roles using password `password
 
 ---
 
-## 4. Analytics & Utilization (Upcoming Feature)
-* The past 3 weeks ($W_{-3}, W_{-2}, W_{-1}$) contain 108 scheduled historical occurrences and 4 cancellations, providing rich historical data for campus space utilization heatmaps, peak load analysis, and identification of underused spaces (e.g. `SEC-101`).
+## 4. Historical Data Profile
+The past 3 weeks contain 108 classes: 104 scheduled and 4 cancelled, providing rich historical data for campus space utilization heatmaps, peak load analysis, and identification of underused spaces (e.g. `SEC-101`).
 
 ---
 
