@@ -1,4 +1,4 @@
-# ClassSync Backend
+# ClassSync — Smart Classroom & Lecture Hall Scheduling System
 
 ClassSync is an automated university classroom scheduling, allocation, and recommendation backend built with Java 21, Spring Boot 3.4.3, MySQL 8 (InnoDB), Hibernate 6, and Flyway migrations.
 
@@ -469,7 +469,7 @@ Because lock queries select single tables and follow this uniform order, circula
 
 ## Testing & Quality Assurance
 
-ClassSync is validated by **240 automated integration tests** in the backend and **31 unit tests** in the frontend with a **100% pass rate**. Backend tests execute exclusively against an isolated database `classsync_test` (catalog verified at test startup, overridable via `TEST_DB_URL`). The test clock is locked to `2026-10-01` via `app.clock.fixed-date` so hardcoded test dates remain valid indefinitely. The developer database `classsync` is never touched during test execution.
+ClassSync is validated by **240 backend tests** and **31 unit tests** in the frontend with a **100% pass rate**. Backend tests execute exclusively against an isolated database `classsync_test` (catalog verified at test startup, overridable via `TEST_DB_URL`). The test clock is locked to `2026-10-01` via `app.clock.fixed-date` so hardcoded test dates remain valid indefinitely. The developer database `classsync` is never touched during test execution.
 
 ```text
 Results from Surefire Reports:

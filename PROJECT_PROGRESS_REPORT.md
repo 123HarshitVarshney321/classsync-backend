@@ -6,7 +6,7 @@
 **Institution:** Academic Project Submission  
 **Technology Stack:** Java 21 LTS, Spring Boot 3.4.3, Spring Security 6, Spring Data JPA, Hibernate 6, MySQL 8.0 (InnoDB), Flyway Migration, JUnit 5, MockMvc, React 19, Vite 8, React Router 8, Tailwind CSS 4, Vitest  
 **Repository:** [GitHub - classsync-backend](https://github.com/123HarshitVarshney321/classsync-backend.git)  
-**Status:** Completed Full-Stack System (Milestones 1–11 + Hardening 11H + React Frontend F1 + Demo Data S1 + Analytics O7), 240 Backend Integration Tests & 31 Frontend Unit Tests Passing (100% Success Rate), November 14, 2026
+**Status:** Completed Full-Stack System (Milestones 1–11 + Hardening 11H + React Frontend F1 + Demo Data S1 + Analytics O7), 240 backend tests & 31 frontend unit tests passing (100% Success Rate), November 14, 2026
 
 ---
 
@@ -172,15 +172,15 @@ Objective O7 provides administrators with transparent visibility into physical r
 
 ## 7. System Objectives Matrix (O1–O7)
 
-| Objective | Title | Status | Backend Implementation | Frontend Interface |
-|---|---|---|---|---|
-| **O1** | Physical Campus Infrastructure Management | DONE | `ComplexService`, `RoomService`, `FacilityService` | `/admin/campus` (Complexes, Rooms, Facilities tabs) |
-| **O2** | Master Timetable Versioning & Recurring Blueprints | DONE | `TimetableService`, `TimetableVersionRepository` | `/admin/timetables` & `/admin/timetables/:id` |
-| **O3** | Calendar Occurrence Generation Engine | DONE | `ScheduleOccurrenceService.generateOccurrences()` | `/admin/generate` (Window selector & conflict table) |
-| **O4** | Advisory Availability Search & Extra-Class Booking | DONE | `AvailabilityService`, `BookingService` | `/find-room` & `/my-week` |
-| **O5** | Non-Destructive Cancellation & Rescheduling | DONE | `ClassScheduleService.cancelClass()`, `rescheduleClass()` | `/my-week` & `/occupancy` (Admin 1-click cancel) |
-| **O6** | Explainable 5-Factor Room Recommendation Engine | DONE | `RecommendationService.getRecommendations()` | `/find-room` (Ranked recommendation cards & scoring) |
-| **O7** | Campus Utilization Analytics & Peak-Hours Heatmap | DONE | `AnalyticsService.getUtilization()`, `UtilizationCalculator` | `/admin/analytics` (Summary cards, table, heatmap) |
+| Objective (from the abstract) | Status | Backend | Frontend |
+|---|---|---|---|
+| **O1** To develop a centralized system for managing classroom and lecture-hall availability | DONE | `ComplexService`, `RoomService`, `FacilityService`; all classes live in one table (`schedule_occurrences`) | Campus (`/admin/campus`), Occupancy (`/occupancy`) |
+| **O2** To integrate the official timetable with temporary bookings and changes | DONE | `TimetableVersionService`, `TimetableEntryService`, `ScheduleOccurrenceService.generateOccurrences()`; extra classes, cancellations and reschedules are stored next to the generated official classes | Timetables (`/admin/timetables`), Generate (`/admin/generate`) |
+| **O3** To support extra-class scheduling, cancellation, and rescheduling | DONE | `BookingService.createExtraClass()`, `ClassScheduleService.cancelOccurrence()`, `ClassScheduleService.rescheduleOccurrence()` | Find a Room (`/find-room`), My Week (`/my-week`), Occupancy (admin cancel) |
+| **O4** To detect and prevent overlapping classroom bookings | DONE | Half-open overlap checks in `TimetableEntryService`, `BookingService`, `ClassScheduleService` and the generator's conflict detection; pessimistic row locks in one global order (V → O → U → R) | 409 conflict messages (Find a Room), conflict report (Generate) |
+| **O5** To recommend suitable rooms based on capacity, facilities, and location | DONE | `RecommendationService.recommendRooms()` (5-factor score with reasons) | Find a Room (`/find-room`) |
+| **O6** To provide a visual weekly timetable and classroom availability view | DONE | `ScheduleOccurrenceService` occurrence queries | My Week (weekly calendar), Occupancy (rooms × hours grid) |
+| **O7** To provide basic classroom utilization analytics for administrators | DONE | `AnalyticsService.getUtilization()`, `UtilizationCalculator` | Analytics (`/admin/analytics`) |
 
 ---
 
@@ -281,7 +281,7 @@ To eliminate deadlocks during concurrent multi-row operations, transactions acqu
 
 ## 12. Testing Strategy & Quality Assurance
 
-ClassSync is validated by **240 automated integration tests** in the backend and **31 unit tests** in the frontend with a **100% pass rate**:
+ClassSync is validated by **240 backend tests** and **31 unit tests** in the frontend with a **100% pass rate**:
 
 ### Backend Test Results (Maven Surefire):
 ```text
@@ -329,7 +329,7 @@ With all primary objectives (O1–O7) and full-stack interfaces delivered, the f
 
 ## 14. Conclusion
 
-**ClassSync** is an end-to-end, fully verified academic scheduling and room allocation platform. All seven core objectives—physical campus infrastructure management (O1), timetable blueprint versioning (O2), calendar occurrence projection (O3), advisory availability search and transactional booking (O4), non-destructive cancellation and rescheduling (O5), explainable 5-factor recommendations (O6), and utilization analytics (O7)—are operational across the Spring Boot backend and React frontend. The application is validated by **240 backend integration tests** and **31 frontend unit tests** with a 100% pass rate.
+**ClassSync** is an end-to-end, fully verified academic scheduling and room allocation platform. All seven core objectives—physical campus infrastructure management (O1), timetable blueprint versioning (O2), calendar occurrence projection (O3), advisory availability search and transactional booking (O4), non-destructive cancellation and rescheduling (O5), explainable 5-factor recommendations (O6), and utilization analytics (O7)—are operational across the Spring Boot backend and React frontend. The application is validated by **240 backend tests** and **31 frontend unit tests** with a 100% pass rate.
 
 ---
 *Report updated on November 14, 2026. Branch `feature/final-polish`.*
